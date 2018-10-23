@@ -27,7 +27,7 @@ char *PORT;
 int PROCESS_ID;
 char **HOSTS;
 int NUM_HOSTS;
-int *MEMBERSHIP_LIST;      // void pointer because we will malloc the array of ints later
+unsigned int *MEMBERSHIP_LIST;      // void pointer because we will malloc the array of ints later
 int MEMBERSHIP_SIZE = 0;
 Boolean IS_LEADER = False;
 int VIEW_ID = 1;
@@ -48,20 +48,20 @@ char **open_parse_hostfile(char *hostfile)
 {
     char hostname[64];
     int cur_hostname = gethostname(hostname, 63);
-    log(0, LOG_LEVEL, "Got hostname: %s\n", cur_hostname);
+    logger(0, LOG_LEVEL, "Got hostname: %s\n", cur_hostname);
     if (cur_hostname == -1)
     {
-        log(1, LOG_LEVEL, "Could not get hostname\n");
+        logger(1, LOG_LEVEL, "Could not get hostname\n");
         exit(1);
     }
 
     FILE *fp = fopen(hostfile, "r");
     if (fp == NULL)
     {
-        log(1, LOG_LEVEL, "Could not open hostfile\n");
+        logger(1, LOG_LEVEL, "Could not open hostfile\n");
         exit(1);
     }
-    log(0, LOG_LEVEL, "Opened hostfile\n");
+    logger(0, LOG_LEVEL, "Opened hostfile\n");
 
     // get number of lines in hostfile
     int numLines = 0;
@@ -73,7 +73,7 @@ char **open_parse_hostfile(char *hostfile)
             numLines ++;
         chr = getc(fp);
     }
-    log(0, LOG_LEVEL, "Hostfile is %d lines\n", numLines);
+    logger(0, LOG_LEVEL, "Hostfile is %d lines\n", numLines);
     fseek(fp, 0, SEEK_SET);     // reset to beginning
 
     // malloc 2-D array of hostnames
@@ -82,7 +82,7 @@ char **open_parse_hostfile(char *hostfile)
     NUM_HOSTS = numLines;
     if (hosts == NULL)
     {
-        log(1, LOG_LEVEL, "Could not malloc hosts array\n");
+        logger(1, LOG_LEVEL, "Could not malloc hosts array\n");
         exit(1);
     }
 
@@ -93,18 +93,18 @@ char **open_parse_hostfile(char *hostfile)
         hosts[i] = (char *)malloc(255);
         if (hosts[i] == NULL)
         {
-            log(1, LOG_LEVEL, "Error on malloc");
+            logger(1, LOG_LEVEL, "Error on malloc");
             exit(1);
         }
         fgets(hosts[i], 255, fp);
         char *newline_pos;
         if ((newline_pos=strchr(hosts[i], '\n')) != NULL)
             *newline_pos = '\0';
-        log(0, LOG_LEVEL, "Host %s read in\n", hosts[i]);
+        logger(0, LOG_LEVEL, "Host %s read in\n", hosts[i]);
         if ((strcmp(hosts[i], hostname)) == 0)
         {
             PROCESS_ID = i+1;
-            log(0, LOG_LEVEL, "Process id: %d\n", PROCESS_ID);
+            logger(0, LOG_LEVEL, "Process id: %d\n", PROCESS_ID);
         }
     }
 
@@ -116,7 +116,7 @@ void add_to_membership_list(int process_id)
     if (MEMBERSHIP_LIST[process_id-1] == 0)
     {
         MEMBERSHIP_LIST[process_id-1] = process_id;
-        log(0, LOG_LEVEL, "Stored process %d in membership list\n", process_id);
+        logger(0, LOG_LEVEL, "Stored process %d in membership list\n", process_id);
         MEMBERSHIP_SIZE++;
         return;
     }
@@ -135,16 +135,15 @@ void request_to_join()
 
     pack_header(header, buf);
     pack_join_message(join, buf+8);             // +8 because need to offset for header
-    log(0, LOG_LEVEL, "Message and header setup and packed\n");
+    logger(0, LOG_LEVEL, "Message and header setup and packed\n");
 
     // since they've been packed we don't need the structs any more
     free(header);
     free(join);
 
-    int sockfd, numbytes;
+    int sockfd;
     struct addrinfo hints, *servinfo, *p;
     int rv;
-    char s[INET6_ADDRSTRLEN];
 
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
@@ -152,7 +151,7 @@ void request_to_join()
 
     if ((rv = getaddrinfo(HOSTS[0], PORT, &hints, &servinfo)) != 0)
     {
-        log(1, LOG_LEVEL, "getaddrinfo %s\n", gai_strerror(rv));
+        logger(1, LOG_LEVEL, "getaddrinfo %s\n", gai_strerror(rv));
         exit(1);
     }
 
@@ -172,19 +171,19 @@ void request_to_join()
 
     if (p == NULL)
     {
-        log(1, LOG_LEVEL, "Failed to connect to leader\n");
+        logger(1, LOG_LEVEL, "Failed to connect to leader\n");
         exit(1);
     }
     freeaddrinfo(servinfo);
-    log(0, LOG_LEVEL, "Connected to leader\n");
+    logger(0, LOG_LEVEL, "Connected to leader\n");
 
     if (send(sockfd, buf, sizeof(buf), 0) == -1)
     {
-        log(1, LOG_LEVEL, "Could not send join request to leader\n");
+        logger(1, LOG_LEVEL, "Could not send join request to leader\n");
     }
     close(sockfd);
 
-    log(0, LOG_LEVEL, "Join Request Sent\n");
+    logger(0, LOG_LEVEL, "Join Request Sent\n");
 
     // don't need the data anymore
     free(buf);
@@ -230,12 +229,11 @@ void send_req(JoinMessage *msg)
 
     pack_header(header, buf);
     pack_req_message(req, buf+8);             // +8 because need to offset for header
-    log(0, LOG_LEVEL, "Message and header setup and packed\n");
+    logger(0, LOG_LEVEL, "Message and header setup and packed\n");
 
-    int sockfd, numbytes;
+    int sockfd;
     struct addrinfo hints, *servinfo, *p;
     int rv;
-    char s[INET6_ADDRSTRLEN];
 
     int i;
     for (i = 0; i < NUM_HOSTS; i++)
@@ -252,7 +250,7 @@ void send_req(JoinMessage *msg)
 
         if ((rv = getaddrinfo(HOSTS[i], PORT, &hints, &servinfo)) != 0)
         {
-            log(1, LOG_LEVEL, "getaddrinfo %s\n", gai_strerror(rv));
+            logger(1, LOG_LEVEL, "getaddrinfo %s\n", gai_strerror(rv));
             exit(1);
         }
 
@@ -272,20 +270,20 @@ void send_req(JoinMessage *msg)
 
         if (p == NULL)
         {
-            log(1, LOG_LEVEL, "Failed to connect to peer\n");
+            logger(1, LOG_LEVEL, "Failed to connect to peer\n");
             exit(1);
         }
         freeaddrinfo(servinfo);
-        log(0, LOG_LEVEL, "Connected to peer\n");
+        logger(0, LOG_LEVEL, "Connected to peer\n");
 
         if (send(sockfd, buf, sizeof(buf), 0) == -1)
         {
-            log(1, LOG_LEVEL, "Could not send req to peer\n");
+            logger(1, LOG_LEVEL, "Could not send req to peer\n");
         }
         close(sockfd);
 
     }
-    log(0, LOG_LEVEL, "Reqs Sent\n");
+    logger(0, LOG_LEVEL, "Reqs Sent\n");
 
     // we can go ahead and store it and we know we will ok it.
     store_operation(req);
@@ -312,16 +310,15 @@ void send_ok(ReqMessage *req)
 
     pack_header(header, buf);
     pack_ok_message(ok, buf+8);             // +8 because need to offset for header
-    log(0, LOG_LEVEL, "Message and header setup and packed\n");
+    logger(0, LOG_LEVEL, "Message and header setup and packed\n");
 
     // since they've been packed we don't need the structs any more
     free(header);
     free(ok);
 
-    int sockfd, numbytes;
+    int sockfd;
     struct addrinfo hints, *servinfo, *p;
     int rv;
-    char s[INET6_ADDRSTRLEN];
 
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
@@ -329,7 +326,7 @@ void send_ok(ReqMessage *req)
 
     if ((rv = getaddrinfo(HOSTS[0], PORT, &hints, &servinfo)) != 0)
     {
-        log(1, LOG_LEVEL, "getaddrinfo %s\n", gai_strerror(rv));
+        logger(1, LOG_LEVEL, "getaddrinfo %s\n", gai_strerror(rv));
         exit(1);
     }
 
@@ -349,19 +346,19 @@ void send_ok(ReqMessage *req)
 
     if (p == NULL)
     {
-        log(1, LOG_LEVEL, "Failed to connect to leader\n");
+        logger(1, LOG_LEVEL, "Failed to connect to leader\n");
         exit(1);
     }
     freeaddrinfo(servinfo);
-    log(0, LOG_LEVEL, "Connected to leader\n");
+    logger(0, LOG_LEVEL, "Connected to leader\n");
 
     if (send(sockfd, buf, sizeof(buf), 0) == -1)
     {
-        log(1, LOG_LEVEL, "Could not send ok to leader\n");
+        logger(1, LOG_LEVEL, "Could not send ok to leader\n");
     }
     close(sockfd);
 
-    log(0, LOG_LEVEL, "Ok Sent\n");
+    logger(0, LOG_LEVEL, "Ok Sent\n");
 
     // don't need the data anymore
     free(buf);
@@ -386,15 +383,14 @@ void send_new_view()
                         (view->membership_size * sizeof(int)));
 
     pack_header(header, buf);
-    log(0, LOG_LEVEL, "Packing new view\n");
+    logger(0, LOG_LEVEL, "Packing new view\n");
     pack_view_message(view, buf+8);             // +8 because need to offset for header
-    log(0, LOG_LEVEL, "Finished packing new view\n");
-    log(0, LOG_LEVEL, "Message and header setup and packed\n");
+    logger(0, LOG_LEVEL, "Finished packing new view\n");
+    logger(0, LOG_LEVEL, "Message and header setup and packed\n");
 
-    int sockfd, numbytes;
+    int sockfd;
     struct addrinfo hints, *servinfo, *p;
     int rv;
-    char s[INET6_ADDRSTRLEN];
 
     int i;
     for (i = 0; i < NUM_HOSTS; i++)
@@ -411,7 +407,7 @@ void send_new_view()
 
         if ((rv = getaddrinfo(HOSTS[i], PORT, &hints, &servinfo)) != 0)
         {
-            log(1, LOG_LEVEL, "getaddrinfo %s\n", gai_strerror(rv));
+            logger(1, LOG_LEVEL, "getaddrinfo %s\n", gai_strerror(rv));
             exit(1);
         }
 
@@ -431,20 +427,20 @@ void send_new_view()
 
         if (p == NULL)
         {
-            log(1, LOG_LEVEL, "Failed to connect to peer\n");
+            logger(1, LOG_LEVEL, "Failed to connect to peer\n");
             exit(1);
         }
         freeaddrinfo(servinfo);
-        log(0, LOG_LEVEL, "Connected to peer\n");
+        logger(0, LOG_LEVEL, "Connected to peer\n");
 
         if (send(sockfd, buf, sizeof(buf), 0) == -1)
         {
-            log(1, LOG_LEVEL, "Could not send new_view to peer\n");
+            logger(1, LOG_LEVEL, "Could not send new_view to peer\n");
         }
         close(sockfd);
 
     }
-    log(0, LOG_LEVEL, "New View Sent\n");
+    logger(0, LOG_LEVEL, "New View Sent\n");
 
     // since they've been packed we don't need the structs any more
     free(header);
@@ -459,31 +455,31 @@ int main(int argc, char *argv[])
     // parse the command line
     if (argc < 5)
     {
-        log(1, LOG_LEVEL, "USAGE:\n prj2 -p port -h hostfile\n");
+        logger(1, LOG_LEVEL, "USAGE:\n prj2 -p port -h hostfile\n");
     }
 
-    log(0, LOG_LEVEL, "Parsing command line\n");
+    logger(0, LOG_LEVEL, "Parsing command line\n");
     if (strcmp(argv[1], "-p") == 0)
     {
         PORT = argv[2];
     }
-    if (PORT < 10000 || PORT > 65535)
+    if (atoi(PORT) < 10000 || atoi(PORT) > 65535)
     {
-        log(1, LOG_LEVEL, "Port number out of range 10000 - 65535\n");
+        logger(1, LOG_LEVEL, "Port number out of range 10000 - 65535\n");
         exit(1);
     }
     if (strcmp(argv[3], "-h") == 0)
     {
         HOSTS = open_parse_hostfile(argv[4]);
     }
-    log(0, LOG_LEVEL, "Command line parsed\n");
+    logger(0, LOG_LEVEL, "Command line parsed\n");
 
     STORED_OPS = malloc(MAX_OPS * sizeof(StoredOperation *));
-    memset(STORED_OPS, 0, sizeof(STORED_OPS));
-    log(0, LOG_LEVEL, "Setup stored operations\n");
+    memset(STORED_OPS, 0, sizeof(*STORED_OPS));
+    logger(0, LOG_LEVEL, "Setup stored operations\n");
 
     // setup all the socket shit
-    log(0, LOG_LEVEL, "Setting up networking\n");
+    logger(0, LOG_LEVEL, "Setting up networking\n");
     fd_set master;          // master file descriptor list
     fd_set read_fds;        // temp file descriptor list for select()
     int fdmax;              // maximum file descriptor number
@@ -493,13 +489,10 @@ int main(int argc, char *argv[])
     struct sockaddr_storage remoteaddr;     // client address
     socklen_t addrlen;
 
-    char buf[256];          // buffer for client data
     int nbytes;
 
-    char remoteIP[INET6_ADDRSTRLEN];
-
     int yes=1;              // for setsockopt() SO_REUSEADDR
-    int i, j, rv;
+    int i, rv;
 
     struct addrinfo hints, *ai, *p;
 
@@ -513,7 +506,7 @@ int main(int argc, char *argv[])
     hints.ai_flags = AI_PASSIVE;
     if ((rv = getaddrinfo(NULL, PORT, &hints, &ai)) != 0)
     {
-        log(1, LOG_LEVEL, "selectserver: %s\n", gai_strerror(rv));
+        logger(1, LOG_LEVEL, "selectserver: %s\n", gai_strerror(rv));
         exit(1);
     }
 
@@ -539,14 +532,14 @@ int main(int argc, char *argv[])
     // if here then didn't bind
     if (p == NULL)
     {
-        log(1, LOG_LEVEL, "selectserver: failed to bind\n");
+        logger(1, LOG_LEVEL, "selectserver: failed to bind\n");
         exit(1);
     }
     freeaddrinfo(ai);
 
     if (listen(listener, 10) == -1)
     {
-        log(1, LOG_LEVEL, "listen fail\n");
+        logger(1, LOG_LEVEL, "listen fail\n");
         exit(1);
     }
 
@@ -555,7 +548,7 @@ int main(int argc, char *argv[])
     // track the biggest file descriptor
     fdmax = listener;
 
-    log(0, LOG_LEVEL, "Networking setup\n");
+    logger(0, LOG_LEVEL, "Networking setup\n");
 
     // if leader       
         // initialize membership list to include self
@@ -565,7 +558,7 @@ int main(int argc, char *argv[])
     {
         IS_LEADER = True;
         MEMBERSHIP_LIST = malloc(NUM_HOSTS * sizeof(int));
-        memset(MEMBERSHIP_LIST, 0, sizeof(MEMBERSHIP_LIST));
+        memset(MEMBERSHIP_LIST, 0, sizeof(*MEMBERSHIP_LIST));
         add_to_membership_list(PROCESS_ID);
     }
     // else   
@@ -581,7 +574,7 @@ int main(int argc, char *argv[])
         read_fds = master;      // copy fd set
         if (select(fdmax+1, &read_fds, NULL, NULL, NULL) == -1)
         {
-            log(1, LOG_LEVEL, "Failed on select\n");
+            logger(1, LOG_LEVEL, "Failed on select\n");
             exit(1);
         }
 
@@ -598,7 +591,7 @@ int main(int argc, char *argv[])
                     
                     if (newfd == -1)
                     {
-                        log(1, LOG_LEVEL, "Fail on accept\n");
+                        logger(1, LOG_LEVEL, "Fail on accept\n");
                     }
                     else
                     {
@@ -714,9 +707,9 @@ int main(int argc, char *argv[])
                                     close(i);
                                     FD_CLR(i, &master);
                                 }
-                                log(0, LOG_LEVEL, "Unpacking new view\n");
+                                logger(0, LOG_LEVEL, "Unpacking new view\n");
                                 unpack_view_message(view, view_buf);
-                                log(0, LOG_LEVEL, "Finished unpackine new view\n");
+                                logger(0, LOG_LEVEL, "Finished unpackine new view\n");
 
                                 // update view id
                                 VIEW_ID = view->view_id;

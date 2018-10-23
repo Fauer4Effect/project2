@@ -3,7 +3,7 @@
 
 #include "logging.h"
 
-void log(int type, int log_level, char *msg, ...)
+void logger(int type, int log_level, char *msg, ...)
 {
     va_list argptr;
     va_start(argptr, msg);

@@ -1,19 +1,23 @@
 #include <stdio.h>
+#include <stdarg.h>
 
-void log(char *msg, int type, int log_level)
+void log(int type, int log_level, char *msg, ...)
 {
+    va_list argptr;
+    va_start(argptr, msg);
     switch (log_level) 
     {
         case 1:
-            fprintf(stderr, msg);
+            vfprintf(stderr, msg, argptr);
             break;
         case 2:
             if (type)
             {
-                fprintf(stderr, msg);
+                vfprintf(stderr, msg, argptr);
             }
             break;
         default:
             break;
     }
+    va_end(argptr);
 }

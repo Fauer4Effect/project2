@@ -1,4 +1,9 @@
 
+#define ReqMessageType 1
+#define OkMessageType 2
+#define NewViewMessageType 3
+#define JoinMessageType 4
+
 typedef struct {
     uint32_t request_id;
     uint32_t curr_view_id;

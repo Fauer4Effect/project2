@@ -18,12 +18,16 @@
 
 #define LOG_LEVEL DEBUG                             // set log level to debug for logging
 #define max(A, B) ((A) > (B) ? (A) : (B))
+#define True 1
+#define False 0
+#define Boolean int
 
 int PORT;
 int PROCESS_ID;
 char **HOSTS;
 int NUM_HOSTS;
 int *MEMBERSHIP_LIST;      // void pointer because we will malloc the array of ints later
+Boolean IS_LEADER = False;
 
 void *get_in_addr(struct sockaddr *sa)
 {
@@ -135,6 +139,10 @@ void request_to_join()
     pack_join_message(join, buf+8);             // +8 because need to offset for header
     log(0, LOG_LEVEL, "Message and header setup and packed\n");
 
+    // since they've been packed we don't need the structs any more
+    free(header);
+    free(join);
+
     int sockfd, numbytes;
     struct addrinfo hints, *servinfo, *p;
     int rv;
@@ -179,6 +187,9 @@ void request_to_join()
     close(sockfd);
 
     log(0, LOG_LEVEL, "Join Request Sent\n");
+
+    // don't need the data anymore
+    free(buf);
 
     return;
 }
@@ -288,6 +299,7 @@ int main(int argc, char *argv[])
         // this just an int[] that just references hosts array on send
     if (PROCESS_ID == 1)
     {
+        IS_LEADER = True;
         MEMBERSHIP_LIST = malloc(NUM_HOSTS * sizeof(int));
         add_to_membership_list(PROCESS_ID);
     }
@@ -299,33 +311,87 @@ int main(int argc, char *argv[])
     }
 
     // listening for connections
+    for (;;)
+    {
+        read_fds = master;      // copy fd set
+        if (select(fdmax+1, &read_fds, NULL, NULL, NULL) == -1)
+        {
+            log(1, LOG_LEVEL, "Failed on select\n");
+            exit(1);
+        }
 
-        // if ready to read
+        for (i = 0; i <= fdmax; i++)
+        {
+            // Something to read on this socket
+            if (FD_ISSET(i, &read_fds))
+            {
+                // handle new connection
+                if (i == listener)
+                {
+                    addrlen = sizeof(remoteaddr);
+                    newfd = accept(listener, (struct sockaddr *)&remoteaddr, &addrlen);
+                    
+                    if (newfd == -1)
+                    {
+                        log(1, LOG_LEVEL, "Fail on accept\n");
+                    }
+                    else
+                    {
+                        FD_SET(newfd, &master);         // add to master set
+                        fdmax = max(fdmax, newfd);      // keep track of max
+                    }
+                }
+                // handle data from a client
+                else
+                {
+                    unsigned char *recvd_header = malloc(sizeof(Header));
+                    Header *header = malloc(sizeof(Header));
 
-            // get header
-                
-                // if join request
+                    // get header
+                    if ((nbytes = recv(i, recvd_header, sizeof(recvd_header), 0)) <= 0)
+                    {
+                        // error or connection closed
+                        close(i);
+                        FD_CLR(i, &master);         // remove from master set
+                    }
+                    else
+                    {
+                        unpack_header(header, recvd_header);        // unpack the header
 
-                    // send req to everyone else
-                    // save the operation and list of oks
-                
-                // if req message
+                        switch(header->msg_type)
+                        {
+                            // if join request
+                            case JoinMessageType:
+                                // send req to everyone else
+                                // save the operation and list of oks
+                                break;
+                            // if req message
+                            case ReqMessageType:
+                                // save operation
+                                // send ok
+                                break;
+                            // if ok
+                            case OkMessageType:
+                                // update ok list for request id and view
 
-                    // save operation
-                    // send ok
-                
-                // if ok
+                                // if received all oks
 
-                    // update ok list for request id and view
-
-                    // if oks list full
-
-                        // increment view id
-                        // send New View
-
-                // if new View
-
-                    // update view id
-                    // update membership list
-                    // print view id and membership list
+                                    // increment view id
+                                    // send New View
+                                break;
+                            // if new view
+                            case NewViewMessageType:
+                                // update view id
+                                // update membership list
+                                // print view id and membership list
+                                break;
+                            default:
+                                break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
 }

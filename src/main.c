@@ -23,6 +23,7 @@ int PORT;
 int PROCESS_ID;
 char **HOSTS;
 int NUM_HOSTS;
+int *MEMBERSHIP_LIST;      // void pointer because we will malloc the array of ints later
 
 void *get_in_addr(struct sockaddr *sa)
 {
@@ -90,14 +91,96 @@ char **open_parse_hostfile(char *hostfile)
         char *newline_pos;
         if ((newline_pos=strchr(hosts[i], '\n')) != NULL)
             *newline_pos = '\0';
-        log(1, LOG_LEVEL, "Host %s read in\n", hosts[i]);
+        log(0, LOG_LEVEL, "Host %s read in\n", hosts[i]);
         if ((strcmp(hosts[i], hostname)) == 0)
         {
             PROCESS_ID = i;
+            log(0, LOG_LEVEL, "Process id: %d\n", PROCESS_ID);
         }
     }
 
     return hosts;
+}
+
+void add_to_membership_list(int process_id)
+{
+    int i;
+    int curID;
+    for (i = 0; i < NUM_HOSTS; i++)
+    {
+        curID = MEMBERSHIP_LIST[i];
+        if (curID == 0)
+        {
+            MEMBERSHIP_LIST[i] = process_id;
+            log(0, LOG_LEVEL, "Stored process %d in membership list\n", process_id);
+            return;
+        }
+    }
+    log(1, LOG_LEVEL, "Membership list full, addition failed\n");
+    exit(1);
+}
+
+void request_to_join()
+{
+    Header *header = malloc(sizeof(Header));
+    header->msg_type = 4;                       // join message
+    header->size = sizeof(JoinMessage);
+
+    JoinMessage *join = malloc(sizeof(JoinMessage));
+    join->process_id = PROCESS_ID;
+
+    unsigned char *buf = malloc(sizeof(Header) + sizeof(JoinMessage));
+
+    pack_header(header, buf);
+    pack_join_message(join, buf+8);             // +8 because need to offset for header
+    log(0, LOG_LEVEL, "Message and header setup and packed\n");
+
+    int sockfd, numbytes;
+    struct addrinfo hints, *servinfo, *p;
+    int rv;
+    char s[INET6_ADDRSTRLEN];
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+
+    if ((rv = getaddrinfo(HOSTS[0], PORT, &hints, &servinfo)) != 0)
+    {
+        log(1, LOG_LEVEL, "getaddrinfo %s\n", gai_strerror(rv));
+        exit(1);
+    }
+
+    for(p = servinfo; p != NULL; p = p->ai_next)
+    {
+        if ((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1)
+        {
+            continue;
+        }
+        if (connect(sockfd, p->ai_addr, p->ai_addrlen) == -1)
+        {
+            close(sockfd);
+            continue;
+        }
+        break;
+    }
+
+    if (p == NULL)
+    {
+        log(1, LOG_LEVEL, "Failed to connect to leader\n");
+        exit(1);
+    }
+    freeaddrinfo(servinfo);
+    log(0, LOG_LEVEL, "Connected to leader\n");
+
+    if (send(sockfd, buf, sizeof(buf)) == -1)
+    {
+        log(1, LOG_LEVEL, "Could not send join request to leader\n");
+    }
+    close(sockfd);
+
+    log(0, LOG_LEVEL, "Join Request Sent\n");
+
+    return;
 }
 
 int main(int argc, char *argv[])
@@ -108,7 +191,7 @@ int main(int argc, char *argv[])
         log(1, LOG_LEVEL, "USAGE:\n prj2 -p port -h hostfile\n");
     }
 
-    log(0, LOG_LEVEL, "Parsing command line");
+    log(0, LOG_LEVEL, "Parsing command line\n");
     if (strcmp(argv[1], "-p") == 0)
     {
         PORT = atoi(argv[2]);
@@ -199,15 +282,21 @@ int main(int argc, char *argv[])
 
     log(0, LOG_LEVEL, "Networking setup\n");
 
-    // if leader
-        
+    // if leader       
         // initialize membership list to include self
         // because we all know all of the members at the start
-        // ??? could this just be an int[] that just references hosts array
-
-    // else
-        
+        // this just an int[] that just references hosts array on send
+    if (PROCESS_ID == 1)
+    {
+        MEMBERSHIP_LIST = malloc(NUM_HOSTS * sizeof(int));
+        add_to_membership_list(PROCESS_ID);
+    }
+    // else   
         // send a message to the leader asking to join
+    else
+    {
+        request_to_join();
+    }
 
     // listening for connections
 

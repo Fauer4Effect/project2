@@ -44,9 +44,18 @@ void unpack_header(Header *header, unsigned char *buf)
     header->msg_type = unpacki32(buf);
     buf += 4;
     header->size = unpacki32(buf);
+
+    return;
 }
 
-void pack_req_message(ReqMessage *msg, unsigned char *buf)
+void pack_join_message(JoinMessage *msg, unsigned char *buf)
 {
-    
+    packi32(buf, msg->process_id);
+
+    return;
+}
+
+void unpack_join_message(JoinMessage *msg, unsigned char *buf)
+{
+    msg->process_id = unpacki32(buf);
 }

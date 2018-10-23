@@ -1,5 +1,15 @@
 #include <stdint.h>
 
+#include "messages.h"
+
 void packi32(unsigned char *buf, uint32_t i);
 
 uint32_t unpacki32(unsigned char *buf);
+
+void pack_header(Header *header, unsigned char *buf);
+
+void unpack_header(Header *header, unsigned char *buf);
+
+void pack_join_message(JoinMessage *msg, unsigned char *buf);
+
+void unpack_join_message(JoinMessage *msg, unsigned char *buf);

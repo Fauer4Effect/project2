@@ -21,15 +21,19 @@
 #define True 1
 #define False 0
 #define Boolean int
+#define MAX_OPS 255
 
 int PORT;
 int PROCESS_ID;
 char **HOSTS;
 int NUM_HOSTS;
 int *MEMBERSHIP_LIST;      // void pointer because we will malloc the array of ints later
+int MEMBERSHIP_SIZE = 0;
 Boolean IS_LEADER = False;
 int VIEW_ID = 1;
 int REQUEST_ID = 1;
+StoredOperation **STORED_OPS;
+int NUM_OKS;
 
 void *get_in_addr(struct sockaddr *sa)
 {
@@ -100,7 +104,7 @@ char **open_parse_hostfile(char *hostfile)
         log(0, LOG_LEVEL, "Host %s read in\n", hosts[i]);
         if ((strcmp(hosts[i], hostname)) == 0)
         {
-            PROCESS_ID = i;
+            PROCESS_ID = i+1;
             log(0, LOG_LEVEL, "Process id: %d\n", PROCESS_ID);
         }
     }
@@ -110,12 +114,11 @@ char **open_parse_hostfile(char *hostfile)
 
 void add_to_membership_list(int process_id)
 {
-    int curID = MEMBERSHIP_LIST[process_id];
-
-    if (curID == 0)
+    if (MEMBERSHIP_LIST[process_id-1] == 0)
     {
-        MEMBERSHIP_LIST[process_id] = process_id;
+        MEMBERSHIP_LIST[process_id-1] = process_id;
         log(0, LOG_LEVEL, "Stored process %d in membership list\n", process_id);
+        MEMBERSHIP_SIZE++;
         return;
     }
     log(1, LOG_LEVEL, "Why adding already member process to list?\n");
@@ -192,6 +195,26 @@ void request_to_join()
     return;
 }
 
+void store_operation(ReqMessage *req)
+{
+    int i;
+    for (i = 0; i < MAX_OPS; i++)
+    {
+        if (STORED_OPS[i] == 0)
+        {
+            STORED_OPS[i] = malloc(sizeof(StoredOperation));
+
+            STORED_OPS[i]->request_id = req->request_id;
+            STORED_OPS[i]->curr_view_id = req->curr_view_id;
+            STORED_OPS[i]->op_type = req->op_type;
+            STORED_OPS[i]->peer_id = req->peer_id;
+
+            break;
+        }
+    }
+    return;
+}
+
 void send_req(JoinMessage *msg)
 {
     Header *header = malloc(sizeof(Header));
@@ -218,8 +241,8 @@ void send_req(JoinMessage *msg)
     int i;
     for (i = 0; i < NUM_HOSTS; i++)
     {
-        // only need to send to hosts that are members
-        if (MEMBERSHIP_LIST[i] == 0)
+        // only need to send to hosts that are members and don't need to send to self
+        if (MEMBERSHIP_LIST[i] == 0 || (i+1) == PROCESS_ID)
         {
             continue;
         }
@@ -265,9 +288,84 @@ void send_req(JoinMessage *msg)
     }
     log(0, LOG_LEVEL, "Reqs Sent\n");
 
+    // we can go ahead and store it and we know we will ok it.
+    store_operation(req);
+    NUM_OKS = 1;
+
     // since they've been packed we don't need the structs any more
     free(header);
     free(req);
+    free(buf);
+
+    return;
+}
+
+void send_ok(ReqMessage *req)
+{
+    Header *header = malloc(sizeof(Header));
+    header->msg_type = ReqMessageType;                
+    header->size = sizeof(ReqMessage);
+    
+    OkMessage *ok = malloc(sizeof(OkMessage));
+    ok->request_id = req->request_id;
+    ok->curr_view_id = req->curr_view_id;
+
+    unsigned char *buf = malloc(sizeof(Header) + sizeof(OkMessage));
+
+    pack_header(header, buf);
+    pack_ok_message(ok, buf+8);             // +8 because need to offset for header
+    log(0, LOG_LEVEL, "Message and header setup and packed\n");
+
+    // since they've been packed we don't need the structs any more
+    free(header);
+    free(ok);
+
+    int sockfd, numbytes;
+    struct addrinfo hints, *servinfo, *p;
+    int rv;
+    char s[INET6_ADDRSTRLEN];
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+
+    if ((rv = getaddrinfo(HOSTS[0], PORT, &hints, &servinfo)) != 0)
+    {
+        log(1, LOG_LEVEL, "getaddrinfo %s\n", gai_strerror(rv));
+        exit(1);
+    }
+
+    for(p = servinfo; p != NULL; p = p->ai_next)
+    {
+        if ((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1)
+        {
+            continue;
+        }
+        if (connect(sockfd, p->ai_addr, p->ai_addrlen) == -1)
+        {
+            close(sockfd);
+            continue;
+        }
+        break;
+    }
+
+    if (p == NULL)
+    {
+        log(1, LOG_LEVEL, "Failed to connect to leader\n");
+        exit(1);
+    }
+    freeaddrinfo(servinfo);
+    log(0, LOG_LEVEL, "Connected to leader\n");
+
+    if (send(sockfd, buf, sizeof(buf), 0) == -1)
+    {
+        log(1, LOG_LEVEL, "Could not send ok to leader\n");
+    }
+    close(sockfd);
+
+    log(0, LOG_LEVEL, "Ok Sent\n");
+
+    // don't need the data anymore
     free(buf);
 
     return;
@@ -296,6 +394,10 @@ int main(int argc, char *argv[])
         HOSTS = open_parse_hostfile(argv[4]);
     }
     log(0, LOG_LEVEL, "Command line parsed\n");
+
+    STORED_OPS = malloc(MAX_OPS * sizeof(StoredOperation *));
+    memset(STORED_OPS, 0, sizeof(STORED_OPS));
+    log(0, LOG_LEVEL, "Setup stored operations\n");
 
     // setup all the socket shit
     log(0, LOG_LEVEL, "Setting up networking\n");
@@ -454,17 +556,29 @@ int main(int argc, char *argv[])
 
                                 // send req to everyone else
                                 send_req(msg);
-                                // save the operation and list of oks
-
-
+                
                                 // free everything
                                 free(msg);
                                 free(join_buf);
                                 break;
                             // if req message
                             case ReqMessageType:
+                                ReqMessage *msg = malloc(sizeof(ReqMessage));
+                                unsigned char *req_buf = malloc(sizeof(ReqMessage));
+                                if ((nbytes = recv(i, req_buf, sizeof(req_buf), 0)) <= 0)
+                                {
+                                    close(i);
+                                    FD_CLR(i, &master);
+                                }
+                                unpack_req_message(msg, req_buf);
+
                                 // save operation
+                                store_operation(msg);
                                 // send ok
+                                send_ok(msg);
+
+                                free(msg);
+                                free(req_buf);
                                 break;
                             // if ok
                             case OkMessageType:

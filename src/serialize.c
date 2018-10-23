@@ -85,3 +85,21 @@ void unpack_req_message(ReqMessage *msg, unsigned char *buf)
 
     return;
 }
+
+void pack_ok_message(OkMessage *msg, unsigned char *buf)
+{
+    packi32(buf, msg->request_id);
+    buf += 4;
+    packi32(buf, msg->curr_view_id);
+
+    return;
+}
+
+void unpack_ok_message(OkMessage *msg, unsigned char *buf)
+{
+    msg->request_id = unpacki32(buf);
+    buf += 4;
+    msg->curr_view_id = unpacki32(buf);
+
+    return;
+}

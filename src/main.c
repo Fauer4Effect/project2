@@ -120,8 +120,6 @@ void add_to_membership_list(int process_id)
         MEMBERSHIP_SIZE++;
         return;
     }
-    log(1, LOG_LEVEL, "Why adding already member process to list?\n");
-    exit(1);
 }
 
 void request_to_join()
@@ -303,8 +301,8 @@ void send_req(JoinMessage *msg)
 void send_ok(ReqMessage *req)
 {
     Header *header = malloc(sizeof(Header));
-    header->msg_type = ReqMessageType;                
-    header->size = sizeof(ReqMessage);
+    header->msg_type = OkMessageType;                
+    header->size = sizeof(OkMessage);
     
     OkMessage *ok = malloc(sizeof(OkMessage));
     ok->request_id = req->request_id;
@@ -366,6 +364,91 @@ void send_ok(ReqMessage *req)
     log(0, LOG_LEVEL, "Ok Sent\n");
 
     // don't need the data anymore
+    free(buf);
+
+    return;
+}
+
+void send_new_view()
+{
+    Header *header = malloc(sizeof(Header));
+    header->msg_type = NewViewMessageType;  
+    // view_id + membership_size + all_members              
+    header->size = (2 * sizeof(uint32_t)) + (MEMBERSHIP_SIZE * sizeof(int));
+    
+    NewViewMessage *view = malloc(sizeof(NewViewMessage));
+    view->view_id = VIEW_ID;
+    view->membership_size = MEMBERSHIP_SIZE;
+    view->membership_list = MEMBERSHIP_LIST;
+
+    // room for header + view_id + membership_size + all_members
+    unsigned char *buf = malloc(sizeof(Header) + (2 * sizeof(uint32_t)) + 
+                        (view->membership_size * sizeof(int)));
+
+    pack_header(header, buf);
+    log(0, LOG_LEVEL, "Packing new view\n");
+    pack_view_message(view, buf+8);             // +8 because need to offset for header
+    log(0, LOG_LEVEL, "Finished packing new view\n");
+    log(0, LOG_LEVEL, "Message and header setup and packed\n");
+
+    int sockfd, numbytes;
+    struct addrinfo hints, *servinfo, *p;
+    int rv;
+    char s[INET6_ADDRSTRLEN];
+
+    int i;
+    for (i = 0; i < NUM_HOSTS; i++)
+    {
+        // only need to send to hosts that are members and don't need to send to self
+        if (MEMBERSHIP_LIST[i] == 0 || (i+1) == PROCESS_ID)
+        {
+            continue;
+        }
+
+        memset(&hints, 0, sizeof(hints));
+        hints.ai_family = AF_UNSPEC;
+        hints.ai_socktype = SOCK_STREAM;
+
+        if ((rv = getaddrinfo(HOSTS[i], PORT, &hints, &servinfo)) != 0)
+        {
+            log(1, LOG_LEVEL, "getaddrinfo %s\n", gai_strerror(rv));
+            exit(1);
+        }
+
+        for(p = servinfo; p != NULL; p = p->ai_next)
+        {
+            if ((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1)
+            {
+                continue;
+            }
+            if (connect(sockfd, p->ai_addr, p->ai_addrlen) == -1)
+            {
+                close(sockfd);
+                continue;
+            }
+            break;
+        }
+
+        if (p == NULL)
+        {
+            log(1, LOG_LEVEL, "Failed to connect to peer\n");
+            exit(1);
+        }
+        freeaddrinfo(servinfo);
+        log(0, LOG_LEVEL, "Connected to peer\n");
+
+        if (send(sockfd, buf, sizeof(buf), 0) == -1)
+        {
+            log(1, LOG_LEVEL, "Could not send new_view to peer\n");
+        }
+        close(sockfd);
+
+    }
+    log(0, LOG_LEVEL, "New View Sent\n");
+
+    // since they've been packed we don't need the structs any more
+    free(header);
+    free(view);
     free(buf);
 
     return;
@@ -545,8 +628,8 @@ int main(int argc, char *argv[])
                             // if join request
                             case JoinMessageType:
                                 JoinMessage *join = malloc(sizeof(JoinMessage));
-                                unsigned char *join_buf = malloc(sizeof(JoinMessage));
-                                if ((nbytes = recv(i, join_buf, sizeof(join_buf), 0)) <= 0)
+                                unsigned char *join_buf = malloc(header->size);
+                                if ((nbytes = recv(i, join_buf, header->size, 0)) <= 0)
                                 {
                                     // error on receiving join message
                                     close(i);
@@ -564,8 +647,8 @@ int main(int argc, char *argv[])
                             // if req message
                             case ReqMessageType:
                                 ReqMessage *req = malloc(sizeof(ReqMessage));
-                                unsigned char *req_buf = malloc(sizeof(ReqMessage));
-                                if ((nbytes = recv(i, req_buf, sizeof(req_buf), 0)) <= 0)
+                                unsigned char *req_buf = malloc(header->size);
+                                if ((nbytes = recv(i, req_buf, header->size, 0)) <= 0)
                                 {
                                     close(i);
                                     FD_CLR(i, &master);
@@ -583,8 +666,8 @@ int main(int argc, char *argv[])
                             // if ok
                             case OkMessageType:
                                 OkMessage *ok = malloc(sizeof(OkMessage));
-                                unsigned char *ok_buf = malloc(sizeof(OkMessage));
-                                if ((nbytes = recv(i, ok_buf, sizeof(ok_buf), 0)) <= 0)
+                                unsigned char *ok_buf = malloc(header->size);
+                                if ((nbytes = recv(i, ok_buf, header->size, 0)) <= 0)
                                 {
                                     close(i);
                                     FD_CLR(i, &master);
@@ -606,11 +689,13 @@ int main(int argc, char *argv[])
                                 // if received all oks
                                 if (STORED_OPS[i]->num_oks == MEMBERSHIP_SIZE)
                                 {
+                                    // add peer to your membership list
+                                    add_to_membership_list(STORED_OPS[i]->peer_id);
                                     //increment view id
                                     VIEW_ID++;
 
                                     // send new view
-                                    // XXX
+                                    send_new_view();
                                 }
 
                                 free(ok);
@@ -618,9 +703,38 @@ int main(int argc, char *argv[])
                                 break;
                             // if new view
                             case NewViewMessageType:
+                                NewViewMessage *view = malloc(sizeof(NewViewMessage));
+                                unsigned char *view_buf = malloc(header->size);
+                                if ((nbytes = recv(i, view_buf, header->size, 0)) <= 0)
+                                {
+                                    close(i);
+                                    FD_CLR(i, &master);
+                                }
+                                log(0, LOG_LEVEL, "Unpacking new view\n");
+                                unpack_view_message(view, view_buf);
+                                log(0, LOG_LEVEL, "Finished unpackine new view\n");
+
                                 // update view id
+                                VIEW_ID = view->view_id;
                                 // update membership list
+                                int i;
+                                for (i = 0; i < view->membership_size; i++)
+                                {
+                                    add_to_membership_list(view->membership_list[i]);
+                                }
                                 // print view id and membership list
+                                printf("View: %d\n", VIEW_ID);
+                                printf("Members\n");
+                                for (i = 0; i < NUM_HOSTS; i++)
+                                {
+                                    if (MEMBERSHIP_LIST[i] != 0)
+                                    {
+                                        printf("\t%d\n", MEMBERSHIP_LIST[i]);
+                                    }
+                                }
+                                free(view->membership_list);
+                                free(view);
+                                free(view_buf);
                                 break;
                             default:
                                 break;

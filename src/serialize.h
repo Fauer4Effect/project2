@@ -14,10 +14,14 @@ void pack_join_message(JoinMessage *msg, unsigned char *buf);
 
 void unpack_join_message(JoinMessage *msg, unsigned char *buf);
 
-void pack_req_message(ReqMessage *msg, unsigned char *buf)
+void pack_req_message(ReqMessage *msg, unsigned char *buf);
 
-void unpack_req_message(ReqMessage *msg, unsigned char *buf)
+void unpack_req_message(ReqMessage *msg, unsigned char *buf);
 
-void pack_ok_message(OkMessage *msg, unsigned char *buf)
+void pack_ok_message(OkMessage *msg, unsigned char *buf);
 
-void unpack_ok_message(OkMessage *msg, unsigned char *buf)
+void unpack_ok_message(OkMessage *msg, unsigned char *buf);
+
+void pack_view_message(NewViewMessage *view, unsigned char *buf);
+
+void unpack_view_message(NewViewMessage *view, unsigned char *buf);

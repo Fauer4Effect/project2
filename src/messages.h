@@ -20,7 +20,8 @@ typedef struct {
 
 typedef struct {
     uint32_t view_id;
-    unsigned char *membership_list;
+    uint32_t membership_size;
+    unsigned int *membership_list;
 } NewViewMessage;
 
 typedef struct {

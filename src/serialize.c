@@ -103,3 +103,43 @@ void unpack_ok_message(OkMessage *msg, unsigned char *buf)
 
     return;
 }
+
+void pack_view_message(NewViewMessage *view, unsigned char *buf)
+{
+    packi32(buf, view->view_id);
+    buf += 4;
+    packi32(buf, view->membership_size);
+    buf += 4;
+
+    int index = 0;
+    while (index < view->membership_size)
+    {
+        if (view->membership_list[index] != 0)
+        {
+            packi32(buf, view->membership_list[index]);
+            buf += 4;
+            index++;
+        }
+    }
+
+    return;
+}
+
+void unpack_view_message(NewViewMessage *view, unsigned char *buf)
+{
+    view->view_id = unpacki32(buf);
+    buf += 4;
+    view->membership_size = unpacki32(buf);
+    buf += 4;
+    view->membership_list = malloc(view->membership_size * sizeof(int));
+
+    int index = 0;
+    while (index < view->membership_size)
+    {
+        view->membership_list[index] = unpacki32(buf);
+        buf += 4;
+        index++;
+    }
+
+    return;
+}

@@ -16,11 +16,13 @@
 #include "serialize.h"
 #include "logging.h"
 
-#define LOG_LEVEL 1                             // set log level to debug for logging
+#define LOG_LEVEL DEBUG                             // set log level to debug for logging
 #define max(A, B) ((A) > (B) ? (A) : (B))
 
 int PORT;
 int PROCESS_ID;
+char **HOSTS;
+int NUM_HOSTS;
 
 void *get_in_addr(struct sockaddr *sa)
 {
@@ -32,15 +34,98 @@ void *get_in_addr(struct sockaddr *sa)
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
+char **open_parse_hostfile(char *hostfile)
+{
+    char hostname[64];
+    int cur_hostname = gethostname(hostname, 63);
+    log(0, LOG_LEVEL, "Got hostname: %s\n", cur_hostname);
+    if (cur_hostname == -1)
+    {
+        log(1, LOG_LEVEL, "Could not get hostname\n");
+        exit(1);
+    }
+
+    FILE *fp = fopen(hostfile, "r");
+    if (fp == NULL)
+    {
+        log(1, LOG_LEVEL, "Could not open hostfile\n");
+        exit(1);
+    }
+    log(0, LOG_LEVEL, "Opened hostfile\n");
+
+    // get number of lines in hostfile
+    int numLines = 0;
+    char chr;
+    chr = getc(fp);
+    while (chr != EOF) 
+    {
+        if (chr == '\n')
+            numLines ++;
+        chr = getc(fp);
+    }
+    log(0, LOG_LEVEL, "Hostfile is %d lines\n", numLines);
+    fseek(fp, 0, SEEK_SET);     // reset to beginning
+
+    // malloc 2-D array of hostnames
+    char **hosts = malloc(numLines * sizeof(char *));
+    // keep track of size of host file
+    NUM_HOSTS = numLines;
+    if (hosts == NULL)
+    {
+        log(1, LOG_LEVEL, "Could not malloc hosts array\n");
+        exit(1);
+    }
+
+    // read in all the host names
+    int i = 0;
+    for(i = 0; i < NUM_HOSTS; i++)
+    {
+        hosts[i] = (char *)malloc(255);
+        if (hosts[i] == NULL)
+        {
+            log(1, LOG_LEVEL, "Error on malloc");
+            exit(1);
+        }
+        fgets(hosts[i], 255, fp);
+        char *newline_pos;
+        if ((newline_pos=strchr(hosts[i], '\n')) != NULL)
+            *newline_pos = '\0';
+        log(1, LOG_LEVEL, "Host %s read in\n", hosts[i]);
+        if ((strcmp(hosts[i], hostname)) == 0)
+        {
+            PROCESS_ID = i;
+        }
+    }
+
+    return hosts;
+}
+
 int main(int argc, char *argv[])
 {
     // parse the command line
-    if (argc < 4)
+    if (argc < 5)
     {
-        log(1, LOG_LEVEL, "USAGE:\n prj2 -p port -h hostfile");
+        log(1, LOG_LEVEL, "USAGE:\n prj2 -p port -h hostfile\n");
     }
 
+    log(0, LOG_LEVEL, "Parsing command line");
+    if (strcmp(argv[1], "-p") == 0)
+    {
+        PORT = atoi(argv[2]);
+    }
+    if (PORT < 10000 || PORT > 65535)
+    {
+        log(1, LOG_LEVEL, "Port number out of range 10000 - 65535\n");
+        exit(1);
+    }
+    if (strcmp(argv[3], "-h") == 0)
+    {
+        HOSTS = open_parse_hostfile(argv[4]);
+    }
+    log(0, LOG_LEVEL, "Command line parsed\n");
+
     // setup all the socket shit
+    log(0, LOG_LEVEL, "Setting up networking\n");
     fd_set master;          // master file descriptor list
     fd_set read_fds;        // temp file descriptor list for select()
     int fdmax;              // maximum file descriptor number
@@ -103,7 +188,7 @@ int main(int argc, char *argv[])
 
     if (listen(listener, 10) == -1)
     {
-        log(1, LOG_LEVEL, "listen");
+        log(1, LOG_LEVEL, "listen fail\n");
         exit(1);
     }
 
@@ -111,6 +196,8 @@ int main(int argc, char *argv[])
     FD_SET(listener, &master);
     // track the biggest file descriptor
     fdmax = listener;
+
+    log(0, LOG_LEVEL, "Networking setup\n");
 
     // if leader
         

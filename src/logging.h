@@ -1,3 +1,7 @@
+#define DEBUG 1
+#define INFO 2
+#define SILENT 0
+
 /*
 Used to print debug/status messages for debugging, etc.
 

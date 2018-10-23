@@ -35,6 +35,10 @@ void *get_in_addr(struct sockaddr *sa)
 int main(int argc, char *argv[])
 {
     // parse the command line
+    if (argc < 4)
+    {
+        log(1, LOG_LEVEL, "USAGE:\n prj2 -p port -h hostfile");
+    }
 
     // setup all the socket shit
     fd_set master;          // master file descriptor list

@@ -23,7 +23,7 @@
 #define Boolean int
 #define MAX_OPS 255
 
-int PORT;
+char *PORT;
 int PROCESS_ID;
 char **HOSTS;
 int NUM_HOSTS;
@@ -465,7 +465,7 @@ int main(int argc, char *argv[])
     log(0, LOG_LEVEL, "Parsing command line\n");
     if (strcmp(argv[1], "-p") == 0)
     {
-        PORT = atoi(argv[2]);
+        PORT = argv[2];
     }
     if (PORT < 10000 || PORT > 65535)
     {
@@ -627,6 +627,7 @@ int main(int argc, char *argv[])
                         {
                             // if join request
                             case JoinMessageType:
+                                ;
                                 JoinMessage *join = malloc(sizeof(JoinMessage));
                                 unsigned char *join_buf = malloc(header->size);
                                 if ((nbytes = recv(i, join_buf, header->size, 0)) <= 0)
@@ -646,6 +647,7 @@ int main(int argc, char *argv[])
                                 break;
                             // if req message
                             case ReqMessageType:
+                                ;
                                 ReqMessage *req = malloc(sizeof(ReqMessage));
                                 unsigned char *req_buf = malloc(header->size);
                                 if ((nbytes = recv(i, req_buf, header->size, 0)) <= 0)
@@ -665,6 +667,7 @@ int main(int argc, char *argv[])
                                 break;
                             // if ok
                             case OkMessageType:
+                                ;
                                 OkMessage *ok = malloc(sizeof(OkMessage));
                                 unsigned char *ok_buf = malloc(header->size);
                                 if ((nbytes = recv(i, ok_buf, header->size, 0)) <= 0)
@@ -703,6 +706,7 @@ int main(int argc, char *argv[])
                                 break;
                             // if new view
                             case NewViewMessageType:
+                                ;
                                 NewViewMessage *view = malloc(sizeof(NewViewMessage));
                                 unsigned char *view_buf = malloc(header->size);
                                 if ((nbytes = recv(i, view_buf, header->size, 0)) <= 0)
@@ -717,7 +721,6 @@ int main(int argc, char *argv[])
                                 // update view id
                                 VIEW_ID = view->view_id;
                                 // update membership list
-                                int i;
                                 for (i = 0; i < view->membership_size; i++)
                                 {
                                     add_to_membership_list(view->membership_list[i]);

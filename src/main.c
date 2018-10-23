@@ -33,7 +33,6 @@ Boolean IS_LEADER = False;
 int VIEW_ID = 1;
 int REQUEST_ID = 1;
 StoredOperation **STORED_OPS;
-int NUM_OKS;
 
 void *get_in_addr(struct sockaddr *sa)
 {
@@ -208,6 +207,8 @@ void store_operation(ReqMessage *req)
             STORED_OPS[i]->curr_view_id = req->curr_view_id;
             STORED_OPS[i]->op_type = req->op_type;
             STORED_OPS[i]->peer_id = req->peer_id;
+            STORED_OPS[i]->num_oks = 1;             // if you are leader then this is helpful
+                                                    // for everyone else it's kind of dumb
 
             break;
         }
@@ -290,7 +291,6 @@ void send_req(JoinMessage *msg)
 
     // we can go ahead and store it and we know we will ok it.
     store_operation(req);
-    NUM_OKS = 1;
 
     // since they've been packed we don't need the structs any more
     free(header);
@@ -544,7 +544,7 @@ int main(int argc, char *argv[])
                         {
                             // if join request
                             case JoinMessageType:
-                                JoinMessage *msg = malloc(sizeof(JoinMessage));
+                                JoinMessage *join = malloc(sizeof(JoinMessage));
                                 unsigned char *join_buf = malloc(sizeof(JoinMessage));
                                 if ((nbytes = recv(i, join_buf, sizeof(join_buf), 0)) <= 0)
                                 {
@@ -552,42 +552,69 @@ int main(int argc, char *argv[])
                                     close(i);
                                     FD_CLR(i, &master);
                                 }
-                                unpack_join_message(msg, join_buf);
+                                unpack_join_message(join, join_buf);
 
                                 // send req to everyone else
-                                send_req(msg);
+                                send_req(join);
                 
                                 // free everything
-                                free(msg);
+                                free(join);
                                 free(join_buf);
                                 break;
                             // if req message
                             case ReqMessageType:
-                                ReqMessage *msg = malloc(sizeof(ReqMessage));
+                                ReqMessage *req = malloc(sizeof(ReqMessage));
                                 unsigned char *req_buf = malloc(sizeof(ReqMessage));
                                 if ((nbytes = recv(i, req_buf, sizeof(req_buf), 0)) <= 0)
                                 {
                                     close(i);
                                     FD_CLR(i, &master);
                                 }
-                                unpack_req_message(msg, req_buf);
+                                unpack_req_message(req, req_buf);
 
                                 // save operation
-                                store_operation(msg);
+                                store_operation(req);
                                 // send ok
-                                send_ok(msg);
+                                send_ok(req);
 
-                                free(msg);
+                                free(req);
                                 free(req_buf);
                                 break;
                             // if ok
                             case OkMessageType:
+                                OkMessage *ok = malloc(sizeof(OkMessage));
+                                unsigned char *ok_buf = malloc(sizeof(OkMessage));
+                                if ((nbytes = recv(i, ok_buf, sizeof(ok_buf), 0)) <= 0)
+                                {
+                                    close(i);
+                                    FD_CLR(i, &master);
+                                }
+                                unpack_ok_message(ok, ok_buf);
+
                                 // update ok list for request id and view
+                                int i;
+                                for (i = 0; i < MAX_OPS; i++)
+                                {
+                                    if (STORED_OPS[i]->request_id == ok->request_id && 
+                                            STORED_OPS[i]->curr_view_id == ok->curr_view_id)
+                                    {
+                                        STORED_OPS[i]->num_oks ++;
+                                        break;
+                                    }
+                                }
 
                                 // if received all oks
+                                if (STORED_OPS[i]->num_oks == MEMBERSHIP_SIZE)
+                                {
+                                    //increment view id
+                                    VIEW_ID++;
 
-                                    // increment view id
-                                    // send New View
+                                    // send new view
+                                    // XXX
+                                }
+
+                                free(ok);
+                                free(ok_buf);
                                 break;
                             // if new view
                             case NewViewMessageType:

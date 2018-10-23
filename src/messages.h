@@ -37,4 +37,5 @@ typedef struct {
     uint32_t curr_view_id;
     uint32_t op_type;
     uint32_t peer_id;
+    uint32_t num_oks;
 } StoredOperation;

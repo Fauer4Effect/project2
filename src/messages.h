@@ -3,12 +3,13 @@
 #define OkMessageType 2
 #define NewViewMessageType 3
 #define JoinMessageType 4
+#define OpAdd 1
 
 typedef struct {
     uint32_t request_id;
     uint32_t curr_view_id;
     uint32_t op_type;
-    uint32_t id_added;
+    uint32_t peer_id;
 } ReqMessage;
 
 typedef struct {

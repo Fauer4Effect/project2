@@ -28,6 +28,8 @@ char **HOSTS;
 int NUM_HOSTS;
 int *MEMBERSHIP_LIST;      // void pointer because we will malloc the array of ints later
 Boolean IS_LEADER = False;
+int VIEW_ID = 1;
+int REQUEST_ID = 1;
 
 void *get_in_addr(struct sockaddr *sa)
 {
@@ -108,26 +110,22 @@ char **open_parse_hostfile(char *hostfile)
 
 void add_to_membership_list(int process_id)
 {
-    int i;
-    int curID;
-    for (i = 0; i < NUM_HOSTS; i++)
+    int curID = MEMBERSHIP_LIST[process_id];
+
+    if (curID == 0)
     {
-        curID = MEMBERSHIP_LIST[i];
-        if (curID == 0)
-        {
-            MEMBERSHIP_LIST[i] = process_id;
-            log(0, LOG_LEVEL, "Stored process %d in membership list\n", process_id);
-            return;
-        }
+        MEMBERSHIP_LIST[process_id] = process_id;
+        log(0, LOG_LEVEL, "Stored process %d in membership list\n", process_id);
+        return;
     }
-    log(1, LOG_LEVEL, "Membership list full, addition failed\n");
+    log(1, LOG_LEVEL, "Why adding already member process to list?\n");
     exit(1);
 }
 
 void request_to_join()
 {
     Header *header = malloc(sizeof(Header));
-    header->msg_type = 4;                       // join message
+    header->msg_type = JoinMessageType;                       // join message
     header->size = sizeof(JoinMessage);
 
     JoinMessage *join = malloc(sizeof(JoinMessage));
@@ -180,7 +178,7 @@ void request_to_join()
     freeaddrinfo(servinfo);
     log(0, LOG_LEVEL, "Connected to leader\n");
 
-    if (send(sockfd, buf, sizeof(buf)) == -1)
+    if (send(sockfd, buf, sizeof(buf), 0) == -1)
     {
         log(1, LOG_LEVEL, "Could not send join request to leader\n");
     }
@@ -189,6 +187,87 @@ void request_to_join()
     log(0, LOG_LEVEL, "Join Request Sent\n");
 
     // don't need the data anymore
+    free(buf);
+
+    return;
+}
+
+void send_req(JoinMessage *msg)
+{
+    Header *header = malloc(sizeof(Header));
+    header->msg_type = ReqMessageType;                
+    header->size = sizeof(ReqMessage);
+    
+    ReqMessage *req = malloc(sizeof(ReqMessage));
+    req->request_id = REQUEST_ID++;
+    req->curr_view_id = VIEW_ID;
+    req->op_type = OpAdd;
+    req->peer_id = msg->process_id;
+
+    unsigned char *buf = malloc(sizeof(Header) + sizeof(ReqMessage));
+
+    pack_header(header, buf);
+    pack_req_message(req, buf+8);             // +8 because need to offset for header
+    log(0, LOG_LEVEL, "Message and header setup and packed\n");
+
+    int sockfd, numbytes;
+    struct addrinfo hints, *servinfo, *p;
+    int rv;
+    char s[INET6_ADDRSTRLEN];
+
+    int i;
+    for (i = 0; i < NUM_HOSTS; i++)
+    {
+        // only need to send to hosts that are members
+        if (MEMBERSHIP_LIST[i] == 0)
+        {
+            continue;
+        }
+
+        memset(&hints, 0, sizeof(hints));
+        hints.ai_family = AF_UNSPEC;
+        hints.ai_socktype = SOCK_STREAM;
+
+        if ((rv = getaddrinfo(HOSTS[i], PORT, &hints, &servinfo)) != 0)
+        {
+            log(1, LOG_LEVEL, "getaddrinfo %s\n", gai_strerror(rv));
+            exit(1);
+        }
+
+        for(p = servinfo; p != NULL; p = p->ai_next)
+        {
+            if ((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1)
+            {
+                continue;
+            }
+            if (connect(sockfd, p->ai_addr, p->ai_addrlen) == -1)
+            {
+                close(sockfd);
+                continue;
+            }
+            break;
+        }
+
+        if (p == NULL)
+        {
+            log(1, LOG_LEVEL, "Failed to connect to peer\n");
+            exit(1);
+        }
+        freeaddrinfo(servinfo);
+        log(0, LOG_LEVEL, "Connected to peer\n");
+
+        if (send(sockfd, buf, sizeof(buf), 0) == -1)
+        {
+            log(1, LOG_LEVEL, "Could not send req to peer\n");
+        }
+        close(sockfd);
+
+    }
+    log(0, LOG_LEVEL, "Reqs Sent\n");
+
+    // since they've been packed we don't need the structs any more
+    free(header);
+    free(req);
     free(buf);
 
     return;
@@ -301,6 +380,7 @@ int main(int argc, char *argv[])
     {
         IS_LEADER = True;
         MEMBERSHIP_LIST = malloc(NUM_HOSTS * sizeof(int));
+        memset(MEMBERSHIP_LIST, 0, sizeof(MEMBERSHIP_LIST));
         add_to_membership_list(PROCESS_ID);
     }
     // else   
@@ -362,8 +442,24 @@ int main(int argc, char *argv[])
                         {
                             // if join request
                             case JoinMessageType:
+                                JoinMessage *msg = malloc(sizeof(JoinMessage));
+                                unsigned char *join_buf = malloc(sizeof(JoinMessage));
+                                if ((nbytes = recv(i, join_buf, sizeof(join_buf), 0)) <= 0)
+                                {
+                                    // error on receiving join message
+                                    close(i);
+                                    FD_CLR(i, &master);
+                                }
+                                unpack_join_message(msg, join_buf);
+
                                 // send req to everyone else
+                                send_req(msg);
                                 // save the operation and list of oks
+
+
+                                // free everything
+                                free(msg);
+                                free(join_buf);
                                 break;
                             // if req message
                             case ReqMessageType:
@@ -389,9 +485,12 @@ int main(int argc, char *argv[])
                                 break;
                         }
                     }
+
+                    free(recvd_header);
+                    free(header);
                 }
             }
         }
     }
-    
+
 }

@@ -59,3 +59,29 @@ void unpack_join_message(JoinMessage *msg, unsigned char *buf)
 {
     msg->process_id = unpacki32(buf);
 }
+
+void pack_req_message(ReqMessage *msg, unsigned char *buf)
+{
+    packi32(buf, msg->request_id);
+    buf += 4;
+    packi32(buf, msg->curr_view_id);
+    buf += 4;
+    packi32(buf, msg->op_type);
+    buf += 4;
+    packi32(buf, msg->peer_id);
+
+    return;
+}
+
+void unpack_req_message(ReqMessage *msg, unsigned char *buf)
+{
+    msg->request_id = unpacki32(buf);
+    buf += 4;
+    msg->curr_view_id = unpacki32(buf);
+    buf += 4;
+    msg->op_type = unpacki32(buf);
+    buf += 4;
+    msg->peer_id = unpacki32(buf);
+
+    return;
+}

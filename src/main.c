@@ -239,7 +239,8 @@ void send_req(JoinMessage *msg)
     for (i = 0; i < NUM_HOSTS; i++)
     {
         // only need to send to hosts that are members and don't need to send to self
-        if (MEMBERSHIP_LIST[i] == 0 || (i+1) == PROCESS_ID)
+        // if (MEMBERSHIP_LIST[i] == 0 || (i+1) == PROCESS_ID)
+        if (MEMBERSHIP_LIST[i] == 0)
         {
             continue;
         }
@@ -396,7 +397,8 @@ void send_new_view()
     for (i = 0; i < NUM_HOSTS; i++)
     {
         // only need to send to hosts that are members and don't need to send to self
-        if (MEMBERSHIP_LIST[i] == 0 || (i+1) == PROCESS_ID)
+        // if (MEMBERSHIP_LIST[i] == 0 || (i+1) == PROCESS_ID)
+        if (MEMBERSHIP_LIST[i] == 0)
         {
             continue;
         }
@@ -620,7 +622,7 @@ int main(int argc, char *argv[])
                         {
                             // if join request
                             case JoinMessageType:
-                                ;
+                                logger(0, LOG_LEVEL, "Received Join Request\n");
                                 JoinMessage *join = malloc(sizeof(JoinMessage));
                                 unsigned char *join_buf = malloc(header->size);
                                 if ((nbytes = recv(i, join_buf, header->size, 0)) <= 0)
@@ -640,7 +642,7 @@ int main(int argc, char *argv[])
                                 break;
                             // if req message
                             case ReqMessageType:
-                                ;
+                                logger(0, LOG_LEVEL, "Received Req Message\n");
                                 ReqMessage *req = malloc(sizeof(ReqMessage));
                                 unsigned char *req_buf = malloc(header->size);
                                 if ((nbytes = recv(i, req_buf, header->size, 0)) <= 0)
@@ -660,7 +662,7 @@ int main(int argc, char *argv[])
                                 break;
                             // if ok
                             case OkMessageType:
-                                ;
+                                logger(0, LOG_LEVEL, "Received Ok Message\n");
                                 OkMessage *ok = malloc(sizeof(OkMessage));
                                 unsigned char *ok_buf = malloc(header->size);
                                 if ((nbytes = recv(i, ok_buf, header->size, 0)) <= 0)
@@ -674,6 +676,7 @@ int main(int argc, char *argv[])
                                 int i;
                                 for (i = 0; i < MAX_OPS; i++)
                                 {
+                                    // FIXME we are segfaulting right here
                                     if (STORED_OPS[i]->request_id == ok->request_id && 
                                             STORED_OPS[i]->curr_view_id == ok->curr_view_id)
                                     {
@@ -699,7 +702,7 @@ int main(int argc, char *argv[])
                                 break;
                             // if new view
                             case NewViewMessageType:
-                                ;
+                                logger(0, LOG_LEVEL, "Received New view message\n");
                                 NewViewMessage *view = malloc(sizeof(NewViewMessage));
                                 unsigned char *view_buf = malloc(header->size);
                                 if ((nbytes = recv(i, view_buf, header->size, 0)) <= 0)

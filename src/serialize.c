@@ -108,6 +108,7 @@ void unpack_ok_message(OkMessage *msg, unsigned char *buf)
 void pack_view_message(NewViewMessage *view, unsigned char *buf)
 {
     packi32(buf, view->view_id);
+    printf("Verify org: %08x packed %08x\n", view->view_id, unpacki32(buf));
     buf += 4;
     packi32(buf, view->membership_size);
     buf += 4;
@@ -118,6 +119,7 @@ void pack_view_message(NewViewMessage *view, unsigned char *buf)
         if (view->membership_list[index] != 0)
         {
             packi32(buf, view->membership_list[index]);
+            printf("Verify org: %08x packed %08x\n", view->membership_list[index], unpacki32(buf));
             buf += 4;
             index++;
         }

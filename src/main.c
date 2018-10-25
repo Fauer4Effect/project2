@@ -444,7 +444,7 @@ void send_new_view()
     for (i = 0; i < NUM_HOSTS; i++)
     {
         // only need to send to hosts that are members and don't need to send to self
-        // if (MEMBERSHIP_LIST[i] == 0 || (i+1) == PROCESS_ID)
+        //if (MEMBERSHIP_LIST[i] == 0 || (i+1) == PROCESS_ID)
         if (MEMBERSHIP_LIST[i] == 0)
         {
             continue;
@@ -487,13 +487,7 @@ void send_new_view()
         {
             logger(1, LOG_LEVEL, "Could not send new_view to peer\n");
         }
-
-        int msg_size = (2 * sizeof(uint32_t)) + (view->membership_size * sizeof(int));
-        int sent = send(sockfd, new_view_buf, msg_size, 0);
-        if (sent != msg_size)
-        {
-            logger(0, LOG_LEVEL, "Only sent %d bytes of %d\n", sent, msg_size);
-        }
+        send(sockfd, new_view_buf, header->size, 0);
         close(sockfd);
 
     }
@@ -615,11 +609,13 @@ int main(int argc, char *argv[])
         // initialize membership list to include self
         // because we all know all of the members at the start
         // this just an int[] that just references hosts array on send
+    MEMBERSHIP_LIST = malloc(NUM_HOSTS * sizeof(int));
+    memset(MEMBERSHIP_LIST, 0, sizeof(*MEMBERSHIP_LIST));
     if (PROCESS_ID == 1)
     {
         IS_LEADER = True;
-        MEMBERSHIP_LIST = malloc(NUM_HOSTS * sizeof(int));
-        memset(MEMBERSHIP_LIST, 0, sizeof(*MEMBERSHIP_LIST));
+        // MEMBERSHIP_LIST = malloc(NUM_HOSTS * sizeof(int));
+        // memset(MEMBERSHIP_LIST, 0, sizeof(*MEMBERSHIP_LIST));
         add_to_membership_list(PROCESS_ID);
     }
     // else   
@@ -740,29 +736,29 @@ int main(int argc, char *argv[])
                                 unpack_ok_message(ok, ok_buf);
                                 logger(0, LOG_LEVEL, "OK unpacked\n");
                                 // update ok list for request id and view
-                                int i;
-                                for (i = 0; i < MAX_OPS; i++)
+                                int j;
+                                for (j = 0; j < MAX_OPS; j++)
                                 {
-                                    if (STORED_OPS[i] == 0)
+                                    if (STORED_OPS[j] == 0)
                                     {
                                         continue;
                                         logger(0, LOG_LEVEL, "Empty stored op\n");
                                     }
-                                    if (STORED_OPS[i]->request_id == ok->request_id && 
-                                            STORED_OPS[i]->curr_view_id == ok->curr_view_id)
+                                    if (STORED_OPS[j]->request_id == ok->request_id && 
+                                            STORED_OPS[j]->curr_view_id == ok->curr_view_id)
                                     {
                                         //STORED_OPS[i]->num_oks ++;
                                         logger(0, LOG_LEVEL, "Found stored message\n");
-                                        STORED_OPS[i]->num_oks = STORED_OPS[i]->num_oks + 1;
+                                        STORED_OPS[j]->num_oks = STORED_OPS[j]->num_oks + 1;
                                         break;
                                     }
                                 }
 
                                 // if received all oks
-                                if (STORED_OPS[i]->num_oks == MEMBERSHIP_SIZE)
+                                if (STORED_OPS[j]->num_oks == MEMBERSHIP_SIZE)
                                 {
                                     // add peer to your membership list
-                                    add_to_membership_list(STORED_OPS[i]->peer_id);
+                                    add_to_membership_list(STORED_OPS[j]->peer_id);
                                     //increment view id
                                     VIEW_ID++;
 
@@ -771,7 +767,7 @@ int main(int argc, char *argv[])
                                 }
                                 else
                                 {
-                                    logger(0, LOG_LEVEL, "Have %d oks\n", STORED_OPS[i]->num_oks);
+                                    logger(0, LOG_LEVEL, "Have %d oks\n", STORED_OPS[j]->num_oks);
                                 }
 
                                 free(ok);
@@ -780,33 +776,38 @@ int main(int argc, char *argv[])
                             // if new view
                             case NewViewMessageType:
                                 logger(0, LOG_LEVEL, "Received New view message\n");
+                                logger(0, LOG_LEVEL, "Header says size is %08x\n", header->size);
                                 NewViewMessage *view = malloc(sizeof(NewViewMessage));
                                 unsigned char *view_buf = malloc(header->size);
-                                if ((nbytes = recv(i, view_buf, header->size, 0)) <= header->size)
+                                if ((nbytes = recv(i, view_buf, header->size, 0)) == -1)
                                 {
                                     logger(1, LOG_LEVEL, "Did not receive full view\n");
+                                    logger(1, LOG_LEVEL, "recv: %s (%d)\n", strerror(errno), errno);
+                                    logger(1, LOG_LEVEL, "Socket %d\n", i);
                                     close(i);
                                     FD_CLR(i, &master);
                                 }
                                 logger(0, LOG_LEVEL, "Unpacking new view\n");
                                 unpack_view_message(view, view_buf);
-                                logger(0, LOG_LEVEL, "Finished unpackine new view\n");
+                                logger(0, LOG_LEVEL, "Finished unpacking new view\n");
 
                                 // update view id
                                 VIEW_ID = view->view_id;
+                                logger(0, LOG_LEVEL, "Updated View id\n");
                                 // update membership list
-                                for (i = 0; i < view->membership_size; i++)
+                                for (j = 0; j < view->membership_size; j++)
                                 {
-                                    add_to_membership_list(view->membership_list[i]);
+                                    add_to_membership_list(view->membership_list[j]);
                                 }
+                                logger(0, LOG_LEVEL, "Updated Membership list\n");
                                 // print view id and membership list
                                 printf("View: %d\n", VIEW_ID);
                                 printf("Members\n");
-                                for (i = 0; i < NUM_HOSTS; i++)
+                                for (j = 0; j < NUM_HOSTS; j++)
                                 {
-                                    if (MEMBERSHIP_LIST[i] != 0)
+                                    if (MEMBERSHIP_LIST[j] != 0)
                                     {
-                                        printf("\t%d\n", MEMBERSHIP_LIST[i]);
+                                        printf("\t%d\n", MEMBERSHIP_LIST[j]);
                                     }
                                 }
                                 free(view->membership_list);

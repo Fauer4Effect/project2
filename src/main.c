@@ -309,7 +309,7 @@ void send_req(JoinMessage *msg)
         sent = send(sockfd, req_buf, sizeof(ReqMessage), 0);
         if (sent < sizeof(req_buf))
         {
-            logger(0, LOG_LEVEL ,"Only sent %d instead of %d\n", sent, sizeof(req_buf));
+            logger(0, LOG_LEVEL, PROCESS_ID, "Only sent %d instead of %d\n", sent, sizeof(req_buf));
         }
         logger(0, LOG_LEVEL, PROCESS_ID, "Sent %d bytes of req message\n", sent);
         logger(0, LOG_LEVEL, PROCESS_ID, "%d\n", unpacki32(req_buf+8));

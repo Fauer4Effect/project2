@@ -130,8 +130,10 @@ void unpack_view_message(NewViewMessage *view, unsigned char *buf)
 {
     view->view_id = unpacki32(buf);
     buf += 4;
+    printf("\tNew View ID: %08x\n", view->view_id);
     view->membership_size = unpacki32(buf);
     buf += 4;
+    printf("\tMembership list size: %08x\n", view->membership_size);
     view->membership_list = malloc(view->membership_size * sizeof(int));
 
     int index = 0;

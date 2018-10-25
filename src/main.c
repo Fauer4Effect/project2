@@ -27,7 +27,7 @@ char *PORT;
 int PROCESS_ID;
 char **HOSTS;
 int NUM_HOSTS;
-unsigned int *MEMBERSHIP_LIST;      // void pointer because we will malloc the array of ints later
+uint32_t *MEMBERSHIP_LIST;      // void pointer because we will malloc the array of ints later
 int MEMBERSHIP_SIZE = 0;
 Boolean IS_LEADER = False;
 int VIEW_ID = 1;
@@ -182,11 +182,11 @@ void request_to_join()
     logger(0, LOG_LEVEL, "Connected to leader\n");
 
     //if (send(sockfd, buf, sizeof(buf), 0) == -1)
-    if (send(sockfd, header_buf, sizeof(header_buf), 0) == -1)
+    if (send(sockfd, header_buf, sizeof(Header), 0) == -1)
     {
         logger(1, LOG_LEVEL, "Could not send join request to leader\n");
     }
-    send(sockfd, join_buf, sizeof(join_buf), 0);
+    send(sockfd, join_buf, sizeof(JoinMessage), 0);
     close(sockfd);
 
     logger(0, LOG_LEVEL, "Join Request Sent\n");
@@ -213,7 +213,8 @@ void store_operation(ReqMessage *req)
             STORED_OPS[i]->curr_view_id = req->curr_view_id;
             STORED_OPS[i]->op_type = req->op_type;
             STORED_OPS[i]->peer_id = req->peer_id;
-            STORED_OPS[i]->num_oks = 1;             // if you are leader then this is helpful
+            STORED_OPS[i]->num_oks = 0;
+            //STORED_OPS[i]->num_oks = 1;             // if you are leader then this is helpful
                                                     // for everyone else it's kind of dumb
 
             logger(0, LOG_LEVEL, "Stored op: %d with view: %d\n", 
@@ -235,6 +236,12 @@ void send_req(JoinMessage *msg)
     req->curr_view_id = VIEW_ID;
     req->op_type = OpAdd;
     req->peer_id = msg->process_id;
+
+    logger(0, LOG_LEVEL, "Sending Req\n");
+    logger(0, LOG_LEVEL, "\trequest id: %d\n", req->request_id);
+    logger(0, LOG_LEVEL, "\tview id: %d\n", req->curr_view_id);
+    logger(0, LOG_LEVEL, "\top type: %d\n", req->op_type);
+    logger(0, LOG_LEVEL, "\tpeer id: %d\n", req->peer_id);
 
     // unsigned char *buf = malloc(sizeof(Header) + sizeof(ReqMessage));
     unsigned char *header_buf = malloc(sizeof(Header));
@@ -293,11 +300,19 @@ void send_req(JoinMessage *msg)
         logger(0, LOG_LEVEL, "Connected to peer\n");
 
         // if (send(sockfd, buf, sizeof(buf), 0) == -1)
-        if(send(sockfd, header_buf, sizeof(header_buf), 0) == -1)
+        if(send(sockfd, header_buf, sizeof(Header), 0) == -1)
         {
             logger(1, LOG_LEVEL, "Could not send req to peer\n");
         }
-        send(sockfd, req_buf, sizeof(req_buf), 0);
+        int sent;
+        //sent = send(sockfd, req_buf, sizeof(req_buf), 0);
+        sent = send(sockfd, req_buf, sizeof(ReqMessage), 0);
+        if (sent < sizeof(req_buf))
+        {
+            logger(0, LOG_LEVEL ,"Only sent %d instead of %d\n", sent, sizeof(req_buf));
+        }
+        logger(0, LOG_LEVEL, "Sent %d bytes of req message\n", sent);
+        logger(0, LOG_LEVEL, "%d\n", unpacki32(req_buf+8));
         close(sockfd);
 
     }
@@ -377,11 +392,11 @@ void send_ok(ReqMessage *req)
     logger(0, LOG_LEVEL, "Connected to leader\n");
 
     // if (send(sockfd, buf, sizeof(buf), 0) == -1)
-    if (send(sockfd, header_buf, sizeof(header_buf), 0) == -1)
+    if (send(sockfd, header_buf, sizeof(Header), 0) == -1)
     {
         logger(1, LOG_LEVEL, "Could not send ok to leader\n");
     }
-    send(sockfd, ok_buf, sizeof(ok_buf), 0);
+    send(sockfd, ok_buf, sizeof(OkMessage), 0);
     close(sockfd);
 
     logger(0, LOG_LEVEL, "Ok Sent\n");
@@ -395,11 +410,12 @@ void send_ok(ReqMessage *req)
 }
 
 void send_new_view()
-{
+{   
     Header *header = malloc(sizeof(Header));
     header->msg_type = NewViewMessageType;  
     // view_id + membership_size + all_members              
-    header->size = (2 * sizeof(uint32_t)) + (MEMBERSHIP_SIZE * sizeof(int));
+    header->size = (2 * sizeof(uint32_t)) + (MEMBERSHIP_SIZE * sizeof(uint32_t));
+    logger(0, LOG_LEVEL, "New View Message size %d\n", header->size);
     
     NewViewMessage *view = malloc(sizeof(NewViewMessage));
     view->view_id = VIEW_ID;
@@ -410,7 +426,7 @@ void send_new_view()
     // unsigned char *buf = malloc(sizeof(Header) + (2 * sizeof(uint32_t)) + 
                         // (view->membership_size * sizeof(int)));
     unsigned char *header_buf = malloc(sizeof(Header));
-    unsigned char *new_view_buf = malloc((2 * sizeof(uint32_t) + (view->membership_size * sizeof(int))));
+    unsigned char *new_view_buf = malloc(header->size);
 
     // pack_header(header, buf);
     pack_header(header, header_buf);
@@ -467,15 +483,23 @@ void send_new_view()
         logger(0, LOG_LEVEL, "Connected to peer\n");
 
         // if (send(sockfd, buf, sizeof(buf), 0) == -1)
-        if (send(sockfd, header_buf, sizeof(header_buf), 0) == -1)
+        if (send(sockfd, header_buf, sizeof(Header), 0) == -1)
         {
             logger(1, LOG_LEVEL, "Could not send new_view to peer\n");
         }
-        send(sockfd, new_view_buf, sizeof(new_view_buf), 0);
+
+        int msg_size = (2 * sizeof(uint32_t)) + (view->membership_size * sizeof(int));
+        int sent = send(sockfd, new_view_buf, msg_size, 0);
+        if (sent != msg_size)
+        {
+            logger(0, LOG_LEVEL, "Only sent %d bytes of %d\n", sent, msg_size);
+        }
         close(sockfd);
 
     }
     logger(0, LOG_LEVEL, "New View Sent\n");
+    logger(0, LOG_LEVEL, "\tview id: %08x\n", unpacki32(new_view_buf));
+    logger(0, LOG_LEVEL, "\tmembership size: %08x\n", unpacki32(new_view_buf+4));
 
     // since they've been packed we don't need the structs any more
     free(header);
@@ -681,9 +705,11 @@ int main(int argc, char *argv[])
                                 logger(0, LOG_LEVEL, "Received Req Message\n");
                                 ReqMessage *req = malloc(sizeof(ReqMessage));
                                 unsigned char *req_buf = malloc(header->size);
-                                if ((nbytes = recv(i, req_buf, header->size, 0)) <= 0)
+                                //if ((nbytes = recv(i, req_buf, header->size, 0)) <= 0)
+                                if ((nbytes = recv(i, req_buf, header->size, 0)) < header->size)
                                 {
                                     close(i);
+                                    logger(0, LOG_LEVEL, "Didn't get full message\n");
                                     FD_CLR(i, &master);
                                 }
                                 unpack_req_message(req, req_buf);
@@ -725,7 +751,9 @@ int main(int argc, char *argv[])
                                     if (STORED_OPS[i]->request_id == ok->request_id && 
                                             STORED_OPS[i]->curr_view_id == ok->curr_view_id)
                                     {
-                                        STORED_OPS[i]->num_oks ++;
+                                        //STORED_OPS[i]->num_oks ++;
+                                        logger(0, LOG_LEVEL, "Found stored message\n");
+                                        STORED_OPS[i]->num_oks = STORED_OPS[i]->num_oks + 1;
                                         break;
                                     }
                                 }
@@ -741,6 +769,10 @@ int main(int argc, char *argv[])
                                     // send new view
                                     send_new_view();
                                 }
+                                else
+                                {
+                                    logger(0, LOG_LEVEL, "Have %d oks\n", STORED_OPS[i]->num_oks);
+                                }
 
                                 free(ok);
                                 free(ok_buf);
@@ -750,8 +782,9 @@ int main(int argc, char *argv[])
                                 logger(0, LOG_LEVEL, "Received New view message\n");
                                 NewViewMessage *view = malloc(sizeof(NewViewMessage));
                                 unsigned char *view_buf = malloc(header->size);
-                                if ((nbytes = recv(i, view_buf, header->size, 0)) <= 0)
+                                if ((nbytes = recv(i, view_buf, header->size, 0)) <= header->size)
                                 {
+                                    logger(1, LOG_LEVEL, "Did not receive full view\n");
                                     close(i);
                                     FD_CLR(i, &master);
                                 }

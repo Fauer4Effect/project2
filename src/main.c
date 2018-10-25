@@ -626,11 +626,16 @@ int main(int argc, char *argv[])
         request_to_join();
     }
 
+    // setup timeout for select to 2.5 sec
+    struct timeval select_timeout;
+    select_timeout.tv_sec = 2;
+    select_timeout.tv_usec = 500000;
+
     // listening for connections
     for (;;)
     {
         read_fds = master;      // copy fd set
-        if (select(fdmax+1, &read_fds, NULL, NULL, NULL) == -1)
+        if (select(fdmax+1, &read_fds, NULL, NULL, &select_timeout) == -1)
         {
             logger(1, LOG_LEVEL, "Failed on select\n");
             exit(1);

@@ -27,12 +27,13 @@ char *PORT;
 int PROCESS_ID;
 char **HOSTS;
 int NUM_HOSTS;
-uint32_t *MEMBERSHIP_LIST;      // void pointer because we will malloc the array of ints later
+uint32_t *MEMBERSHIP_LIST;      
 int MEMBERSHIP_SIZE = 0;
 Boolean IS_LEADER = False;
 int VIEW_ID = 1;
 int REQUEST_ID = 1;
 StoredOperation **STORED_OPS;
+int FAILURE_DETECTOR_SOCKET;
 
 void *get_in_addr(struct sockaddr *sa)
 {

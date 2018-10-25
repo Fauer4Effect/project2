@@ -48,20 +48,20 @@ char **open_parse_hostfile(char *hostfile)
 {
     char hostname[64];
     int cur_hostname = gethostname(hostname, 63);
-    logger(0, LOG_LEVEL, "Got hostname: %s\n", hostname);
+    logger(0, LOG_LEVEL, PROCESS_ID, "Got hostname: %s\n", hostname);
     if (cur_hostname == -1)
     {
-        logger(1, LOG_LEVEL, "Could not get hostname\n");
+        logger(1, LOG_LEVEL, PROCESS_ID, "Could not get hostname\n");
         exit(1);
     }
 
     FILE *fp = fopen(hostfile, "r");
     if (fp == NULL)
     {
-        logger(1, LOG_LEVEL, "Could not open hostfile\n");
+        logger(1, LOG_LEVEL, PROCESS_ID, "Could not open hostfile\n");
         exit(1);
     }
-    logger(0, LOG_LEVEL, "Opened hostfile\n");
+    logger(0, LOG_LEVEL, PROCESS_ID, "Opened hostfile\n");
 
     // get number of lines in hostfile
     int numLines = 0;
@@ -73,7 +73,7 @@ char **open_parse_hostfile(char *hostfile)
             numLines ++;
         chr = getc(fp);
     }
-    logger(0, LOG_LEVEL, "Hostfile is %d lines\n", numLines);
+    logger(0, LOG_LEVEL, PROCESS_ID, "Hostfile is %d lines\n", numLines);
     fseek(fp, 0, SEEK_SET);     // reset to beginning
 
     // malloc 2-D array of hostnames
@@ -82,7 +82,7 @@ char **open_parse_hostfile(char *hostfile)
     NUM_HOSTS = numLines;
     if (hosts == NULL)
     {
-        logger(1, LOG_LEVEL, "Could not malloc hosts array\n");
+        logger(1, LOG_LEVEL, PROCESS_ID, "Could not malloc hosts array\n");
         exit(1);
     }
 
@@ -93,18 +93,18 @@ char **open_parse_hostfile(char *hostfile)
         hosts[i] = (char *)malloc(255);
         if (hosts[i] == NULL)
         {
-            logger(1, LOG_LEVEL, "Error on malloc");
+            logger(1, LOG_LEVEL, PROCESS_ID, "Error on malloc");
             exit(1);
         }
         fgets(hosts[i], 255, fp);
         char *newline_pos;
         if ((newline_pos=strchr(hosts[i], '\n')) != NULL)
             *newline_pos = '\0';
-        logger(0, LOG_LEVEL, "Host %s read in\n", hosts[i]);
+        logger(0, LOG_LEVEL, PROCESS_ID, "Host %s read in\n", hosts[i]);
         if ((strcmp(hosts[i], hostname)) == 0)
         {
             PROCESS_ID = i+1;
-            logger(0, LOG_LEVEL, "Process id: %d\n", PROCESS_ID);
+            logger(0, LOG_LEVEL, PROCESS_ID, "Process id: %d\n", PROCESS_ID);
         }
     }
 
@@ -116,7 +116,7 @@ void add_to_membership_list(int process_id)
     if (MEMBERSHIP_LIST[process_id-1] == 0)
     {
         MEMBERSHIP_LIST[process_id-1] = process_id;
-        logger(0, LOG_LEVEL, "Stored process %d in membership list\n", process_id);
+        logger(0, LOG_LEVEL, PROCESS_ID, "Stored process %d in membership list\n", process_id);
         MEMBERSHIP_SIZE++;
         return;
     }
@@ -139,7 +139,7 @@ void request_to_join()
     //pack_join_message(join, buf+sizeof(Header));             // +8 because need to offset for header
     pack_header(header, header_buf);
     pack_join_message(join, join_buf);
-    logger(0, LOG_LEVEL, "Message and header setup and packed\n");
+    logger(0, LOG_LEVEL, PROCESS_ID, "Message and header setup and packed\n");
 
     // since they've been packed we don't need the structs any more
     free(header);
@@ -155,7 +155,7 @@ void request_to_join()
 
     if ((rv = getaddrinfo(HOSTS[0], PORT, &hints, &servinfo)) != 0)
     {
-        logger(1, LOG_LEVEL, "getaddrinfo %s\n", gai_strerror(rv));
+        logger(1, LOG_LEVEL, PROCESS_ID, "getaddrinfo %s\n", gai_strerror(rv));
         exit(1);
     }
 
@@ -175,21 +175,21 @@ void request_to_join()
 
     if (p == NULL)
     {
-        logger(1, LOG_LEVEL, "Failed to connect to leader\n");
+        logger(1, LOG_LEVEL, PROCESS_ID, "Failed to connect to leader\n");
         exit(1);
     }
     freeaddrinfo(servinfo);
-    logger(0, LOG_LEVEL, "Connected to leader\n");
+    logger(0, LOG_LEVEL, PROCESS_ID, "Connected to leader\n");
 
     //if (send(sockfd, buf, sizeof(buf), 0) == -1)
     if (send(sockfd, header_buf, sizeof(Header), 0) == -1)
     {
-        logger(1, LOG_LEVEL, "Could not send join request to leader\n");
+        logger(1, LOG_LEVEL, PROCESS_ID, "Could not send join request to leader\n");
     }
     send(sockfd, join_buf, sizeof(JoinMessage), 0);
     close(sockfd);
 
-    logger(0, LOG_LEVEL, "Join Request Sent\n");
+    logger(0, LOG_LEVEL, PROCESS_ID, "Join Request Sent\n");
 
     // don't need the data anymore
     //free(buf);
@@ -206,7 +206,7 @@ void store_operation(ReqMessage *req)
     {
         if (STORED_OPS[i] == 0)
         {
-            logger(0, LOG_LEVEL, "Found spot for stored op\n");
+            logger(0, LOG_LEVEL, PROCESS_ID, "Found spot for stored op\n");
             STORED_OPS[i] = malloc(sizeof(StoredOperation));
 
             STORED_OPS[i]->request_id = req->request_id;
@@ -217,7 +217,7 @@ void store_operation(ReqMessage *req)
             //STORED_OPS[i]->num_oks = 1;             // if you are leader then this is helpful
                                                     // for everyone else it's kind of dumb
 
-            logger(0, LOG_LEVEL, "Stored op: %d with view: %d\n", 
+            logger(0, LOG_LEVEL, PROCESS_ID, "Stored op: %d with view: %d\n", 
                     STORED_OPS[i]->request_id, STORED_OPS[i]->curr_view_id);
             break;
         }
@@ -237,11 +237,11 @@ void send_req(JoinMessage *msg)
     req->op_type = OpAdd;
     req->peer_id = msg->process_id;
 
-    logger(0, LOG_LEVEL, "Sending Req\n");
-    logger(0, LOG_LEVEL, "\trequest id: %d\n", req->request_id);
-    logger(0, LOG_LEVEL, "\tview id: %d\n", req->curr_view_id);
-    logger(0, LOG_LEVEL, "\top type: %d\n", req->op_type);
-    logger(0, LOG_LEVEL, "\tpeer id: %d\n", req->peer_id);
+    logger(0, LOG_LEVEL, PROCESS_ID, "Sending Req\n");
+    logger(0, LOG_LEVEL, PROCESS_ID, "\trequest id: %d\n", req->request_id);
+    logger(0, LOG_LEVEL, PROCESS_ID, "\tview id: %d\n", req->curr_view_id);
+    logger(0, LOG_LEVEL, PROCESS_ID, "\top type: %d\n", req->op_type);
+    logger(0, LOG_LEVEL, PROCESS_ID, "\tpeer id: %d\n", req->peer_id);
 
     // unsigned char *buf = malloc(sizeof(Header) + sizeof(ReqMessage));
     unsigned char *header_buf = malloc(sizeof(Header));
@@ -251,7 +251,7 @@ void send_req(JoinMessage *msg)
     // pack_req_message(req, buf+8);             // +8 because need to offset for header
     pack_header(header, header_buf);
     pack_req_message(req, req_buf);
-    logger(0, LOG_LEVEL, "Message and header setup and packed\n");
+    logger(0, LOG_LEVEL, PROCESS_ID, "Message and header setup and packed\n");
 
     int sockfd;
     struct addrinfo hints, *servinfo, *p;
@@ -273,7 +273,7 @@ void send_req(JoinMessage *msg)
 
         if ((rv = getaddrinfo(HOSTS[i], PORT, &hints, &servinfo)) != 0)
         {
-            logger(1, LOG_LEVEL, "getaddrinfo %s\n", gai_strerror(rv));
+            logger(1, LOG_LEVEL, PROCESS_ID, "getaddrinfo %s\n", gai_strerror(rv));
             exit(1);
         }
 
@@ -293,16 +293,16 @@ void send_req(JoinMessage *msg)
 
         if (p == NULL)
         {
-            logger(1, LOG_LEVEL, "Failed to connect to peer\n");
+            logger(1, LOG_LEVEL, PROCESS_ID, "Failed to connect to peer\n");
             exit(1);
         }
         freeaddrinfo(servinfo);
-        logger(0, LOG_LEVEL, "Connected to peer\n");
+        logger(0, LOG_LEVEL, PROCESS_ID, "Connected to peer\n");
 
         // if (send(sockfd, buf, sizeof(buf), 0) == -1)
         if(send(sockfd, header_buf, sizeof(Header), 0) == -1)
         {
-            logger(1, LOG_LEVEL, "Could not send req to peer\n");
+            logger(1, LOG_LEVEL, PROCESS_ID, "Could not send req to peer\n");
         }
         int sent;
         //sent = send(sockfd, req_buf, sizeof(req_buf), 0);
@@ -311,12 +311,12 @@ void send_req(JoinMessage *msg)
         {
             logger(0, LOG_LEVEL ,"Only sent %d instead of %d\n", sent, sizeof(req_buf));
         }
-        logger(0, LOG_LEVEL, "Sent %d bytes of req message\n", sent);
-        logger(0, LOG_LEVEL, "%d\n", unpacki32(req_buf+8));
+        logger(0, LOG_LEVEL, PROCESS_ID, "Sent %d bytes of req message\n", sent);
+        logger(0, LOG_LEVEL, PROCESS_ID, "%d\n", unpacki32(req_buf+8));
         close(sockfd);
 
     }
-    logger(0, LOG_LEVEL, "Reqs Sent\n");
+    logger(0, LOG_LEVEL, PROCESS_ID, "Reqs Sent\n");
 
     // we can go ahead and store it and we know we will ok it.
     //store_operation(req);
@@ -349,7 +349,7 @@ void send_ok(ReqMessage *req)
     // pack_ok_message(ok, buf+8);             // +8 because need to offset for header
     pack_header(header, header_buf);
     pack_ok_message(ok, ok_buf);
-    logger(0, LOG_LEVEL, "Message and header setup and packed\n");
+    logger(0, LOG_LEVEL, PROCESS_ID, "Message and header setup and packed\n");
 
     // since they've been packed we don't need the structs any more
     free(header);
@@ -365,7 +365,7 @@ void send_ok(ReqMessage *req)
 
     if ((rv = getaddrinfo(HOSTS[0], PORT, &hints, &servinfo)) != 0)
     {
-        logger(1, LOG_LEVEL, "getaddrinfo %s\n", gai_strerror(rv));
+        logger(1, LOG_LEVEL, PROCESS_ID, "getaddrinfo %s\n", gai_strerror(rv));
         exit(1);
     }
 
@@ -385,21 +385,21 @@ void send_ok(ReqMessage *req)
 
     if (p == NULL)
     {
-        logger(1, LOG_LEVEL, "Failed to connect to leader\n");
+        logger(1, LOG_LEVEL, PROCESS_ID, "Failed to connect to leader\n");
         exit(1);
     }
     freeaddrinfo(servinfo);
-    logger(0, LOG_LEVEL, "Connected to leader\n");
+    logger(0, LOG_LEVEL, PROCESS_ID, "Connected to leader\n");
 
     // if (send(sockfd, buf, sizeof(buf), 0) == -1)
     if (send(sockfd, header_buf, sizeof(Header), 0) == -1)
     {
-        logger(1, LOG_LEVEL, "Could not send ok to leader\n");
+        logger(1, LOG_LEVEL, PROCESS_ID, "Could not send ok to leader\n");
     }
     send(sockfd, ok_buf, sizeof(OkMessage), 0);
     close(sockfd);
 
-    logger(0, LOG_LEVEL, "Ok Sent\n");
+    logger(0, LOG_LEVEL, PROCESS_ID, "Ok Sent\n");
 
     // don't need the data anymore
     // free(buf);
@@ -415,7 +415,7 @@ void send_new_view()
     header->msg_type = NewViewMessageType;  
     // view_id + membership_size + all_members              
     header->size = (2 * sizeof(uint32_t)) + (MEMBERSHIP_SIZE * sizeof(uint32_t));
-    logger(0, LOG_LEVEL, "New View Message size %d\n", header->size);
+    logger(0, LOG_LEVEL, PROCESS_ID, "New View Message size %d\n", header->size);
     
     NewViewMessage *view = malloc(sizeof(NewViewMessage));
     view->view_id = VIEW_ID;
@@ -430,11 +430,11 @@ void send_new_view()
 
     // pack_header(header, buf);
     pack_header(header, header_buf);
-    logger(0, LOG_LEVEL, "Packing new view\n");
+    logger(0, LOG_LEVEL, PROCESS_ID, "Packing new view\n");
     // pack_view_message(view, buf+8);             // +8 because need to offset for header
     pack_view_message(view, new_view_buf);
-    logger(0, LOG_LEVEL, "Finished packing new view\n");
-    logger(0, LOG_LEVEL, "Message and header setup and packed\n");
+    logger(0, LOG_LEVEL, PROCESS_ID, "Finished packing new view\n");
+    logger(0, LOG_LEVEL, PROCESS_ID, "Message and header setup and packed\n");
 
     int sockfd;
     struct addrinfo hints, *servinfo, *p;
@@ -456,7 +456,7 @@ void send_new_view()
 
         if ((rv = getaddrinfo(HOSTS[i], PORT, &hints, &servinfo)) != 0)
         {
-            logger(1, LOG_LEVEL, "getaddrinfo %s\n", gai_strerror(rv));
+            logger(1, LOG_LEVEL, PROCESS_ID, "getaddrinfo %s\n", gai_strerror(rv));
             exit(1);
         }
 
@@ -476,24 +476,24 @@ void send_new_view()
 
         if (p == NULL)
         {
-            logger(1, LOG_LEVEL, "Failed to connect to peer\n");
+            logger(1, LOG_LEVEL, PROCESS_ID, "Failed to connect to peer\n");
             exit(1);
         }
         freeaddrinfo(servinfo);
-        logger(0, LOG_LEVEL, "Connected to peer\n");
+        logger(0, LOG_LEVEL, PROCESS_ID, "Connected to peer\n");
 
         // if (send(sockfd, buf, sizeof(buf), 0) == -1)
         if (send(sockfd, header_buf, sizeof(Header), 0) == -1)
         {
-            logger(1, LOG_LEVEL, "Could not send new_view to peer\n");
+            logger(1, LOG_LEVEL, PROCESS_ID, "Could not send new_view to peer\n");
         }
         send(sockfd, new_view_buf, header->size, 0);
         close(sockfd);
 
     }
-    logger(0, LOG_LEVEL, "New View Sent\n");
-    logger(0, LOG_LEVEL, "\tview id: %08x\n", unpacki32(new_view_buf));
-    logger(0, LOG_LEVEL, "\tmembership size: %08x\n", unpacki32(new_view_buf+4));
+    logger(0, LOG_LEVEL, PROCESS_ID, "New View Sent\n");
+    logger(0, LOG_LEVEL, PROCESS_ID, "\tview id: %08x\n", unpacki32(new_view_buf));
+    logger(0, LOG_LEVEL, PROCESS_ID, "\tmembership size: %08x\n", unpacki32(new_view_buf+4));
 
     // since they've been packed we don't need the structs any more
     free(header);
@@ -510,31 +510,31 @@ int main(int argc, char *argv[])
     // parse the command line
     if (argc < 5)
     {
-        logger(1, LOG_LEVEL, "USAGE:\n prj2 -p port -h hostfile\n");
+        logger(1, LOG_LEVEL, PROCESS_ID, "USAGE:\n prj2 -p port -h hostfile\n");
     }
 
-    logger(0, LOG_LEVEL, "Parsing command line\n");
+    logger(0, LOG_LEVEL, PROCESS_ID, "Parsing command line\n");
     if (strcmp(argv[1], "-p") == 0)
     {
         PORT = argv[2];
     }
     if (atoi(PORT) < 10000 || atoi(PORT) > 65535)
     {
-        logger(1, LOG_LEVEL, "Port number out of range 10000 - 65535\n");
+        logger(1, LOG_LEVEL, PROCESS_ID, "Port number out of range 10000 - 65535\n");
         exit(1);
     }
     if (strcmp(argv[3], "-h") == 0)
     {
         HOSTS = open_parse_hostfile(argv[4]);
     }
-    logger(0, LOG_LEVEL, "Command line parsed\n");
+    logger(0, LOG_LEVEL, PROCESS_ID, "Command line parsed\n");
 
     STORED_OPS = malloc(MAX_OPS * sizeof(StoredOperation *));
     memset(STORED_OPS, 0, sizeof(*STORED_OPS));
-    logger(0, LOG_LEVEL, "Setup stored operations\n");
+    logger(0, LOG_LEVEL, PROCESS_ID, "Setup stored operations\n");
 
     // setup all the socket shit
-    logger(0, LOG_LEVEL, "Setting up networking\n");
+    logger(0, LOG_LEVEL, PROCESS_ID, "Setting up networking\n");
     fd_set master;          // master file descriptor list
     fd_set read_fds;        // temp file descriptor list for select()
     int fdmax;              // maximum file descriptor number
@@ -561,7 +561,7 @@ int main(int argc, char *argv[])
     hints.ai_flags = AI_PASSIVE;
     if ((rv = getaddrinfo(NULL, PORT, &hints, &ai)) != 0)
     {
-        logger(1, LOG_LEVEL, "selectserver: %s\n", gai_strerror(rv));
+        logger(1, LOG_LEVEL, PROCESS_ID, "selectserver: %s\n", gai_strerror(rv));
         exit(1);
     }
 
@@ -587,14 +587,14 @@ int main(int argc, char *argv[])
     // if here then didn't bind
     if (p == NULL)
     {
-        logger(1, LOG_LEVEL, "selectserver: failed to bind\n");
+        logger(1, LOG_LEVEL, PROCESS_ID, "selectserver: failed to bind\n");
         exit(1);
     }
     freeaddrinfo(ai);
 
     if (listen(listener, 10) == -1)
     {
-        logger(1, LOG_LEVEL, "listen fail\n");
+        logger(1, LOG_LEVEL, PROCESS_ID, "listen fail\n");
         exit(1);
     }
 
@@ -603,7 +603,7 @@ int main(int argc, char *argv[])
     // track the biggest file descriptor
     fdmax = listener;
 
-    logger(0, LOG_LEVEL, "Networking setup\n");
+    logger(0, LOG_LEVEL, PROCESS_ID, "Networking setup\n");
 
     // if leader       
         // initialize membership list to include self
@@ -622,7 +622,7 @@ int main(int argc, char *argv[])
         // send a message to the leader asking to join
     else
     {
-        logger(0, LOG_LEVEL, "Messaging leader to join\n");
+        logger(0, LOG_LEVEL, PROCESS_ID, "Messaging leader to join\n");
         request_to_join();
     }
 
@@ -637,7 +637,7 @@ int main(int argc, char *argv[])
         read_fds = master;      // copy fd set
         if (select(fdmax+1, &read_fds, NULL, NULL, &select_timeout) == -1)
         {
-            logger(1, LOG_LEVEL, "Failed on select\n");
+            logger(1, LOG_LEVEL, PROCESS_ID, "Failed on select\n");
             exit(1);
         }
 
@@ -654,7 +654,7 @@ int main(int argc, char *argv[])
                     
                     if (newfd == -1)
                     {
-                        logger(1, LOG_LEVEL, "Fail on accept\n");
+                        logger(1, LOG_LEVEL, PROCESS_ID, "Fail on accept\n");
                     }
                     else
                     {
@@ -683,7 +683,7 @@ int main(int argc, char *argv[])
                         {
                             // if join request
                             case JoinMessageType:
-                                logger(0, LOG_LEVEL, "Received Join Request\n");
+                                logger(0, LOG_LEVEL, PROCESS_ID, "Received Join Request\n");
                                 JoinMessage *join = malloc(sizeof(JoinMessage));
                                 unsigned char *join_buf = malloc(header->size);
                                 if ((nbytes = recv(i, join_buf, header->size, 0)) <= 0)
@@ -703,22 +703,22 @@ int main(int argc, char *argv[])
                                 break;
                             // if req message
                             case ReqMessageType:
-                                logger(0, LOG_LEVEL, "Received Req Message\n");
+                                logger(0, LOG_LEVEL, PROCESS_ID, "Received Req Message\n");
                                 ReqMessage *req = malloc(sizeof(ReqMessage));
                                 unsigned char *req_buf = malloc(header->size);
                                 //if ((nbytes = recv(i, req_buf, header->size, 0)) <= 0)
                                 if ((nbytes = recv(i, req_buf, header->size, 0)) < header->size)
                                 {
                                     close(i);
-                                    logger(0, LOG_LEVEL, "Didn't get full message\n");
+                                    logger(0, LOG_LEVEL, PROCESS_ID, "Didn't get full message\n");
                                     FD_CLR(i, &master);
                                 }
                                 unpack_req_message(req, req_buf);
 
-                                logger(0, LOG_LEVEL, "\trequest id: %08x\n", req->request_id);
-                                logger(0, LOG_LEVEL, "\tview id: %08x\n", req->curr_view_id);
-                                logger(0, LOG_LEVEL, "\top type: %08x\n", req->op_type);
-                                logger(0, LOG_LEVEL, "\tpeer id: %08x\n", req->peer_id);
+                                logger(0, LOG_LEVEL, PROCESS_ID, "\trequest id: %08x\n", req->request_id);
+                                logger(0, LOG_LEVEL, PROCESS_ID, "\tview id: %08x\n", req->curr_view_id);
+                                logger(0, LOG_LEVEL, PROCESS_ID, "\top type: %08x\n", req->op_type);
+                                logger(0, LOG_LEVEL, PROCESS_ID, "\tpeer id: %08x\n", req->peer_id);
 
                                 // save operation
                                 store_operation(req);
@@ -730,7 +730,7 @@ int main(int argc, char *argv[])
                                 break;
                             // if ok
                             case OkMessageType:
-                                logger(0, LOG_LEVEL, "Received Ok Message\n");
+                                logger(0, LOG_LEVEL, PROCESS_ID, "Received Ok Message\n");
                                 OkMessage *ok = malloc(sizeof(OkMessage));
                                 unsigned char *ok_buf = malloc(header->size);
                                 if ((nbytes = recv(i, ok_buf, header->size, 0)) <= 0)
@@ -739,7 +739,7 @@ int main(int argc, char *argv[])
                                     FD_CLR(i, &master);
                                 }
                                 unpack_ok_message(ok, ok_buf);
-                                logger(0, LOG_LEVEL, "OK unpacked\n");
+                                logger(0, LOG_LEVEL, PROCESS_ID, "OK unpacked\n");
                                 // update ok list for request id and view
                                 int j;
                                 for (j = 0; j < MAX_OPS; j++)
@@ -747,13 +747,13 @@ int main(int argc, char *argv[])
                                     if (STORED_OPS[j] == 0)
                                     {
                                         continue;
-                                        logger(0, LOG_LEVEL, "Empty stored op\n");
+                                        logger(0, LOG_LEVEL, PROCESS_ID, "Empty stored op\n");
                                     }
                                     if (STORED_OPS[j]->request_id == ok->request_id && 
                                             STORED_OPS[j]->curr_view_id == ok->curr_view_id)
                                     {
                                         //STORED_OPS[i]->num_oks ++;
-                                        logger(0, LOG_LEVEL, "Found stored message\n");
+                                        logger(0, LOG_LEVEL, PROCESS_ID, "Found stored message\n");
                                         STORED_OPS[j]->num_oks = STORED_OPS[j]->num_oks + 1;
                                         break;
                                     }
@@ -772,7 +772,7 @@ int main(int argc, char *argv[])
                                 }
                                 else
                                 {
-                                    logger(0, LOG_LEVEL, "Have %d oks\n", STORED_OPS[j]->num_oks);
+                                    logger(0, LOG_LEVEL, PROCESS_ID, "Have %d oks\n", STORED_OPS[j]->num_oks);
                                 }
 
                                 free(ok);
@@ -780,31 +780,31 @@ int main(int argc, char *argv[])
                                 break;
                             // if new view
                             case NewViewMessageType:
-                                logger(0, LOG_LEVEL, "Received New view message\n");
-                                logger(0, LOG_LEVEL, "Header says size is %08x\n", header->size);
+                                logger(0, LOG_LEVEL, PROCESS_ID, "Received New view message\n");
+                                logger(0, LOG_LEVEL, PROCESS_ID, "Header says size is %08x\n", header->size);
                                 NewViewMessage *view = malloc(sizeof(NewViewMessage));
                                 unsigned char *view_buf = malloc(header->size);
                                 if ((nbytes = recv(i, view_buf, header->size, 0)) == -1)
                                 {
-                                    logger(1, LOG_LEVEL, "Did not receive full view\n");
-                                    logger(1, LOG_LEVEL, "recv: %s (%d)\n", strerror(errno), errno);
-                                    logger(1, LOG_LEVEL, "Socket %d\n", i);
+                                    logger(1, LOG_LEVEL, PROCESS_ID, "Did not receive full view\n");
+                                    logger(1, LOG_LEVEL, PROCESS_ID, "recv: %s (%d)\n", strerror(errno), errno);
+                                    logger(1, LOG_LEVEL, PROCESS_ID, "Socket %d\n", i);
                                     close(i);
                                     FD_CLR(i, &master);
                                 }
-                                logger(0, LOG_LEVEL, "Unpacking new view\n");
+                                logger(0, LOG_LEVEL, PROCESS_ID, "Unpacking new view\n");
                                 unpack_view_message(view, view_buf);
-                                logger(0, LOG_LEVEL, "Finished unpacking new view\n");
+                                logger(0, LOG_LEVEL, PROCESS_ID, "Finished unpacking new view\n");
 
                                 // update view id
                                 VIEW_ID = view->view_id;
-                                logger(0, LOG_LEVEL, "Updated View id\n");
+                                logger(0, LOG_LEVEL, PROCESS_ID, "Updated View id\n");
                                 // update membership list
                                 for (j = 0; j < view->membership_size; j++)
                                 {
                                     add_to_membership_list(view->membership_list[j]);
                                 }
-                                logger(0, LOG_LEVEL, "Updated Membership list\n");
+                                logger(0, LOG_LEVEL, PROCESS_ID, "Updated Membership list\n");
                                 // print view id and membership list
                                 printf("View: %d\n", VIEW_ID);
                                 printf("Members\n");

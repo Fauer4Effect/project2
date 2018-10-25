@@ -48,7 +48,7 @@ char **open_parse_hostfile(char *hostfile)
 {
     char hostname[64];
     int cur_hostname = gethostname(hostname, 63);
-    logger(0, LOG_LEVEL, "Got hostname: %s\n", cur_hostname);
+    logger(0, LOG_LEVEL, "Got hostname: %s\n", hostname);
     if (cur_hostname == -1)
     {
         logger(1, LOG_LEVEL, "Could not get hostname\n");
@@ -131,10 +131,14 @@ void request_to_join()
     JoinMessage *join = malloc(sizeof(JoinMessage));
     join->process_id = PROCESS_ID;
 
-    unsigned char *buf = malloc(sizeof(Header) + sizeof(JoinMessage));
+    //unsigned char *buf = malloc(sizeof(Header) + sizeof(JoinMessage));
+    unsigned char *header_buf = malloc(sizeof(Header));
+    unsigned char *join_buf = malloc(sizeof(JoinMessage));
 
-    pack_header(header, buf);
-    pack_join_message(join, buf+8);             // +8 because need to offset for header
+    //pack_header(header, buf);
+    //pack_join_message(join, buf+sizeof(Header));             // +8 because need to offset for header
+    pack_header(header, header_buf);
+    pack_join_message(join, join_buf);
     logger(0, LOG_LEVEL, "Message and header setup and packed\n");
 
     // since they've been packed we don't need the structs any more
@@ -177,16 +181,20 @@ void request_to_join()
     freeaddrinfo(servinfo);
     logger(0, LOG_LEVEL, "Connected to leader\n");
 
-    if (send(sockfd, buf, sizeof(buf), 0) == -1)
+    //if (send(sockfd, buf, sizeof(buf), 0) == -1)
+    if (send(sockfd, header_buf, sizeof(header_buf), 0) == -1)
     {
         logger(1, LOG_LEVEL, "Could not send join request to leader\n");
     }
+    send(sockfd, join_buf, sizeof(join_buf), 0);
     close(sockfd);
 
     logger(0, LOG_LEVEL, "Join Request Sent\n");
 
     // don't need the data anymore
-    free(buf);
+    //free(buf);
+    free(header_buf);
+    free(join_buf);
 
     return;
 }
@@ -198,6 +206,7 @@ void store_operation(ReqMessage *req)
     {
         if (STORED_OPS[i] == 0)
         {
+            logger(0, LOG_LEVEL, "Found spot for stored op\n");
             STORED_OPS[i] = malloc(sizeof(StoredOperation));
 
             STORED_OPS[i]->request_id = req->request_id;
@@ -207,6 +216,8 @@ void store_operation(ReqMessage *req)
             STORED_OPS[i]->num_oks = 1;             // if you are leader then this is helpful
                                                     // for everyone else it's kind of dumb
 
+            logger(0, LOG_LEVEL, "Stored op: %d with view: %d\n", 
+                    STORED_OPS[i]->request_id, STORED_OPS[i]->curr_view_id);
             break;
         }
     }
@@ -225,10 +236,14 @@ void send_req(JoinMessage *msg)
     req->op_type = OpAdd;
     req->peer_id = msg->process_id;
 
-    unsigned char *buf = malloc(sizeof(Header) + sizeof(ReqMessage));
+    // unsigned char *buf = malloc(sizeof(Header) + sizeof(ReqMessage));
+    unsigned char *header_buf = malloc(sizeof(Header));
+    unsigned char *req_buf = malloc(sizeof(ReqMessage));
 
-    pack_header(header, buf);
-    pack_req_message(req, buf+8);             // +8 because need to offset for header
+    // pack_header(header, buf);
+    // pack_req_message(req, buf+8);             // +8 because need to offset for header
+    pack_header(header, header_buf);
+    pack_req_message(req, req_buf);
     logger(0, LOG_LEVEL, "Message and header setup and packed\n");
 
     int sockfd;
@@ -277,22 +292,26 @@ void send_req(JoinMessage *msg)
         freeaddrinfo(servinfo);
         logger(0, LOG_LEVEL, "Connected to peer\n");
 
-        if (send(sockfd, buf, sizeof(buf), 0) == -1)
+        // if (send(sockfd, buf, sizeof(buf), 0) == -1)
+        if(send(sockfd, header_buf, sizeof(header_buf), 0) == -1)
         {
             logger(1, LOG_LEVEL, "Could not send req to peer\n");
         }
+        send(sockfd, req_buf, sizeof(req_buf), 0);
         close(sockfd);
 
     }
     logger(0, LOG_LEVEL, "Reqs Sent\n");
 
     // we can go ahead and store it and we know we will ok it.
-    store_operation(req);
+    //store_operation(req);
 
     // since they've been packed we don't need the structs any more
     free(header);
     free(req);
-    free(buf);
+    // free(buf);
+    free(header_buf);
+    free(req_buf);
 
     return;
 }
@@ -307,10 +326,14 @@ void send_ok(ReqMessage *req)
     ok->request_id = req->request_id;
     ok->curr_view_id = req->curr_view_id;
 
-    unsigned char *buf = malloc(sizeof(Header) + sizeof(OkMessage));
+    // unsigned char *buf = malloc(sizeof(Header) + sizeof(OkMessage));
+    unsigned char *header_buf = malloc(sizeof(Header));
+    unsigned char *ok_buf = malloc(sizeof(OkMessage));
 
-    pack_header(header, buf);
-    pack_ok_message(ok, buf+8);             // +8 because need to offset for header
+    // pack_header(header, buf);
+    // pack_ok_message(ok, buf+8);             // +8 because need to offset for header
+    pack_header(header, header_buf);
+    pack_ok_message(ok, ok_buf);
     logger(0, LOG_LEVEL, "Message and header setup and packed\n");
 
     // since they've been packed we don't need the structs any more
@@ -353,16 +376,20 @@ void send_ok(ReqMessage *req)
     freeaddrinfo(servinfo);
     logger(0, LOG_LEVEL, "Connected to leader\n");
 
-    if (send(sockfd, buf, sizeof(buf), 0) == -1)
+    // if (send(sockfd, buf, sizeof(buf), 0) == -1)
+    if (send(sockfd, header_buf, sizeof(header_buf), 0) == -1)
     {
         logger(1, LOG_LEVEL, "Could not send ok to leader\n");
     }
+    send(sockfd, ok_buf, sizeof(ok_buf), 0);
     close(sockfd);
 
     logger(0, LOG_LEVEL, "Ok Sent\n");
 
     // don't need the data anymore
-    free(buf);
+    // free(buf);
+    free(header_buf);
+    free(ok_buf);
 
     return;
 }
@@ -380,12 +407,16 @@ void send_new_view()
     view->membership_list = MEMBERSHIP_LIST;
 
     // room for header + view_id + membership_size + all_members
-    unsigned char *buf = malloc(sizeof(Header) + (2 * sizeof(uint32_t)) + 
-                        (view->membership_size * sizeof(int)));
+    // unsigned char *buf = malloc(sizeof(Header) + (2 * sizeof(uint32_t)) + 
+                        // (view->membership_size * sizeof(int)));
+    unsigned char *header_buf = malloc(sizeof(Header));
+    unsigned char *new_view_buf = malloc((2 * sizeof(uint32_t) + (view->membership_size * sizeof(int))));
 
-    pack_header(header, buf);
+    // pack_header(header, buf);
+    pack_header(header, header_buf);
     logger(0, LOG_LEVEL, "Packing new view\n");
-    pack_view_message(view, buf+8);             // +8 because need to offset for header
+    // pack_view_message(view, buf+8);             // +8 because need to offset for header
+    pack_view_message(view, new_view_buf);
     logger(0, LOG_LEVEL, "Finished packing new view\n");
     logger(0, LOG_LEVEL, "Message and header setup and packed\n");
 
@@ -435,10 +466,12 @@ void send_new_view()
         freeaddrinfo(servinfo);
         logger(0, LOG_LEVEL, "Connected to peer\n");
 
-        if (send(sockfd, buf, sizeof(buf), 0) == -1)
+        // if (send(sockfd, buf, sizeof(buf), 0) == -1)
+        if (send(sockfd, header_buf, sizeof(header_buf), 0) == -1)
         {
             logger(1, LOG_LEVEL, "Could not send new_view to peer\n");
         }
+        send(sockfd, new_view_buf, sizeof(new_view_buf), 0);
         close(sockfd);
 
     }
@@ -447,7 +480,9 @@ void send_new_view()
     // since they've been packed we don't need the structs any more
     free(header);
     free(view);
-    free(buf);
+    // free(buf);
+    free(header_buf);
+    free(new_view_buf);
 
     return;
 }
@@ -567,6 +602,7 @@ int main(int argc, char *argv[])
         // send a message to the leader asking to join
     else
     {
+        logger(0, LOG_LEVEL, "Messaging leader to join\n");
         request_to_join();
     }
 
@@ -652,6 +688,11 @@ int main(int argc, char *argv[])
                                 }
                                 unpack_req_message(req, req_buf);
 
+                                logger(0, LOG_LEVEL, "\trequest id: %08x\n", req->request_id);
+                                logger(0, LOG_LEVEL, "\tview id: %08x\n", req->curr_view_id);
+                                logger(0, LOG_LEVEL, "\top type: %08x\n", req->op_type);
+                                logger(0, LOG_LEVEL, "\tpeer id: %08x\n", req->peer_id);
+
                                 // save operation
                                 store_operation(req);
                                 // send ok
@@ -671,12 +712,16 @@ int main(int argc, char *argv[])
                                     FD_CLR(i, &master);
                                 }
                                 unpack_ok_message(ok, ok_buf);
-
+                                logger(0, LOG_LEVEL, "OK unpacked\n");
                                 // update ok list for request id and view
                                 int i;
                                 for (i = 0; i < MAX_OPS; i++)
                                 {
-                                    // FIXME we are segfaulting right here
+                                    if (STORED_OPS[i] == 0)
+                                    {
+                                        continue;
+                                        logger(0, LOG_LEVEL, "Empty stored op\n");
+                                    }
                                     if (STORED_OPS[i]->request_id == ok->request_id && 
                                             STORED_OPS[i]->curr_view_id == ok->curr_view_id)
                                     {

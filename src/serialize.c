@@ -27,6 +27,7 @@ uint32_t unpacki32(unsigned char *buf)
                  ((uint32_t) buf[1]<<16) |
                  ((uint32_t) buf[2]<<8)  |
                  buf[3];
+
     return i;
 }
 

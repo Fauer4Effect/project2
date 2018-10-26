@@ -16,7 +16,7 @@
 #include "serialize.h"
 #include "logging.h"
 
-#define FAILURE_PORT "66666"
+#define FAILURE_PORT "44444"
 
 // bind the failure dector to a port
 int bind_failure_detector()
@@ -83,13 +83,11 @@ void send_heartbeat(int process_id)
     int i;
     for (i = 0; i < NUM_HOSTS; i++)
     {   
-        //if (MEMBERSHIP_LIST[i] == 0 || (i+1) == PROCESS_ID)
-        if (MEMBERSHIP_LIST[i] == 0)
+        if (MEMBERSHIP_LIST[i] == 0 || (i+1) == PROCESS_ID)
         {
             continue;
         }
 
-        //logger(0, LOG_LEVEL, PROCESS_ID, "Sending to peer %d\n", i+1);
         memset(&hints, 0, sizeof(hints));
         hints.ai_family = AF_UNSPEC;
         hints.ai_socktype = SOCK_DGRAM;
@@ -113,14 +111,11 @@ void send_heartbeat(int process_id)
             //exit(1);
         }
         freeaddrinfo(servinfo);
-        //logger(0, LOG_LEVEL, PROCESS_ID, "Connected to peer\n");
 
         sendto(sockfd, buf, sizeof(HeartBeat), 0, p->ai_addr, p->ai_addrlen);
-        //logger(0, LOG_LEVEL, PROCESS_ID, "HeartBeat sent to peer %d\n", i+1);
 
         close(sockfd);
     }
-    // logger(0, LOG_LEVEL, PROCESS_ID, "HeartBeat Sent\n");
 
     return;
 }
@@ -142,7 +137,6 @@ void get_heartbeat(int sockfd)
 
     HeartBeat *beat = malloc(sizeof(HeartBeat));
     unpack_heart_beat(beat, buf);
-    logger(0, LOG_LEVEL, PROCESS_ID, "Got heartbeat from %d\n", beat->process_id);
 
     struct timeval cur_time;
     gettimeofday(&cur_time, NULL);

@@ -36,6 +36,7 @@ int REQUEST_ID = 1;
 StoredOperation **STORED_OPS;
 int FAILURE_DETECTOR_SOCKET;
 ReceivedHeartBeat **RECEIVED_HEARTBEATS;
+time_t LAST_HEARTBEAT_SENT;
 
 void *get_in_addr(struct sockaddr *sa)
 {
@@ -657,6 +658,11 @@ int main(int argc, char *argv[])
     // declare timeout for select
     struct timeval select_timeout;
 
+    struct timeval cur_time;
+    gettimeofday(&cur_time, NULL);
+
+    LAST_HEARTBEAT_SENT = cur_time.tv_sec;
+
     // listening for connections
     for (;;)
     {
@@ -664,7 +670,8 @@ int main(int argc, char *argv[])
         failure_tmp = failure_master;
     
         // setup timeout for select to 2.5 sec, some unixes change this everytime
-        select_timeout.tv_sec = 2;
+        //select_timeout.tv_sec = 2;
+        select_timeout.tv_sec = 0;
         select_timeout.tv_usec = 500000;
     
         // select for failure detector and get the heartbeat if there is one
@@ -679,18 +686,18 @@ int main(int argc, char *argv[])
             get_heartbeat(FAILURE_DETECTOR_SOCKET);
         }
 
+
         // check which process have died
         for (j = 0; j < NUM_HOSTS; j++)
         {
             //logger(0, LOG_LEVEL, PROCESS_ID, "Verifying for %d\n", j+1);
-            if (RECEIVED_HEARTBEATS[j]->recvd_time == NULL)
+            //if (RECEIVED_HEARTBEATS[j]->recvd_time == NULL)
             //if (MEMBERSHIP_LIST[j] == 0 || (j+1) == PROCESS_ID)
-            //if (MEMBERSHIP_LIST[j] == 0)
+            if (MEMBERSHIP_LIST[j] == 0 || RECEIVED_HEARTBEATS[j]->recvd_time == NULL)
             {
                 continue;
             }
 
-            struct timeval cur_time;
             gettimeofday(&cur_time, NULL);
 
             // timeout is 2.5 for heart beats so if we've waited more than 2x that
@@ -699,14 +706,15 @@ int main(int argc, char *argv[])
                 printf("Peer %d not reachable\n", j+1);
                 RECEIVED_HEARTBEATS[j]->recvd_time = NULL;
             }
-            else
-            {
-                logger(0, LOG_LEVEL, PROCESS_ID, "Peer %d still alive\n", j+1);
-            }
         }
 
         // send heartbeat
-        send_heartbeat(PROCESS_ID);
+        gettimeofday(&cur_time, NULL);
+        if (cur_time.tv_sec - LAST_HEARTBEAT_SENT > 1)
+        {
+            send_heartbeat(PROCESS_ID);
+            LAST_HEARTBEAT_SENT = cur_time.tv_sec;
+        }
 
         select_timeout.tv_sec = 2;
         select_timeout.tv_usec = 500000;

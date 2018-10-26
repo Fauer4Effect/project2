@@ -35,7 +35,7 @@ int VIEW_ID = 1;
 int REQUEST_ID = 1;
 StoredOperation **STORED_OPS;
 int FAILURE_DETECTOR_SOCKET;
-HeartBeat **RECEIVED_HEARTBEATS;
+ReceivedHeartBeat **RECEIVED_HEARTBEATS;
 
 void *get_in_addr(struct sockaddr *sa)
 {
@@ -671,7 +671,7 @@ int main(int argc, char *argv[])
         if (FD_ISSET(FAILURE_DETECTOR_SOCKET, &failure_tmp))
         {
             logger(0, LOG_LEVEL, PROCESS_ID, "Received HeartBeat\n");
-            int success = get_heartbeat(FAILURE_DETECTOR_SOCKET);
+            get_heartbeat(FAILURE_DETECTOR_SOCKET);
         }
 
         // check which process have died

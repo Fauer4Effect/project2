@@ -14,8 +14,9 @@
 #include "failure.h"
 #include "messages.h"
 #include "serialize.h"
+#include "logging.h"
 
-#define FAILURE_PORT 66666
+#define FAILURE_PORT "66666"
 
 // bind the failure dector to a port
 int bind_failure_detector()
@@ -78,7 +79,6 @@ void send_heartbeat(int process_id)
     int sockfd;
     struct addrinfo hints, *servinfo, *p;
     int rv;
-    int numbytes;
 
     int i;
     for (i = 0; i < NUM_HOSTS; i++)
@@ -122,7 +122,7 @@ void send_heartbeat(int process_id)
     return;
 }
 
-int get_heartbeat(int sockfd)
+void get_heartbeat(int sockfd)
 {
     struct sockaddr_storage their_addr;
     socklen_t addr_len = sizeof(their_addr);
@@ -134,15 +134,17 @@ int get_heartbeat(int sockfd)
         (struct sockaddr *)&their_addr, &addr_len)) != sizeof(HeartBeat))
     {
         logger(1, LOG_LEVEL, PROCESS_ID, "Did not receive full HeartBeat\n");
-        return -1;
+        return;
     }
 
     HeartBeat *beat = malloc(sizeof(HeartBeat));
     unpack_heart_beat(beat, buf);
 
-    struct timeval *cur_time;
-    gettimeofday(cur_time, NULL);
+    struct timeval cur_time;
+    gettimeofday(&cur_time, NULL);
     RECEIVED_HEARTBEATS[(beat->process_id)-1]->recvd_time = malloc(sizeof(struct timeval));
-    RECEIVED_HEARTBEATS[(beat->process_id)-1]->recvd_time->tv_sec = cur_time->tv_sec;
-    RECEIVED_HEARTBEATS[(beat->process_id)-1]->recvd_time->tv_usec = cur_time->tv_usec;
+    RECEIVED_HEARTBEATS[(beat->process_id)-1]->recvd_time->tv_sec = cur_time.tv_sec;
+    RECEIVED_HEARTBEATS[(beat->process_id)-1]->recvd_time->tv_usec = cur_time.tv_usec;
+
+    return;
 }

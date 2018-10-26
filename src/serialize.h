@@ -25,3 +25,7 @@ void unpack_ok_message(OkMessage *msg, unsigned char *buf);
 void pack_view_message(NewViewMessage *view, unsigned char *buf);
 
 void unpack_view_message(NewViewMessage *view, unsigned char *buf);
+
+void pack_heart_beat(HeartBeat *beat, unsigned char *buf);
+
+void unpack_heart_beat(HeartBeat *beat, unsigned char *buf);

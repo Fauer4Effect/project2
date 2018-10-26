@@ -33,7 +33,7 @@ int bind_failure_detector()
 
     if ((rv = getaddrinfo(NULL, FAILURE_PORT, &hints, &servinfo)) != 0)
     {
-        logger(0, LOG_LEVEL, PROCESS_ID, "getaddrinfo: %s\n", gai_strerror(rv));
+        logger(1, LOG_LEVEL, PROCESS_ID, "getaddrinfo: %s\n", gai_strerror(rv));
         exit(1);
     }
 
@@ -83,7 +83,7 @@ void send_heartbeat(int process_id)
     int i;
     for (i = 0; i < NUM_HOSTS; i++)
     {   
-        if (MEMBERSHIP_LIST[i] == 0)
+        if (MEMBERSHIP_LIST[i] == 0 || (i+1) == PROCESS_ID)
         {
             continue;
         }
@@ -111,13 +111,13 @@ void send_heartbeat(int process_id)
             exit(1);
         }
         freeaddrinfo(servinfo);
-        logger(0, LOG_LEVEL, PROCESS_ID, "Connected to peer\n");
+        //logger(0, LOG_LEVEL, PROCESS_ID, "Connected to peer\n");
 
         sendto(sockfd, buf, sizeof(HeartBeat), 0, p->ai_addr, p->ai_addrlen);
 
         close(sockfd);
     }
-    logger(0, LOG_LEVEL, PROCESS_ID, "HeartBeat Sent\n");
+    // logger(0, LOG_LEVEL, PROCESS_ID, "HeartBeat Sent\n");
 
     return;
 }

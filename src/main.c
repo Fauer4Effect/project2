@@ -270,6 +270,7 @@ void send_req(JoinMessage *msg)
             continue;
         }
 
+        logger(0, LOG_LEVEL, PROCESS_ID, "Peer %d in Membership list is %08x\n", i, MEMBERSHIP_LIST[i]);
         memset(&hints, 0, sizeof(hints));
         hints.ai_family = AF_UNSPEC;
         hints.ai_socktype = SOCK_STREAM;
@@ -296,11 +297,11 @@ void send_req(JoinMessage *msg)
 
         if (p == NULL)
         {
-            logger(1, LOG_LEVEL, PROCESS_ID, "Failed to connect to peer\n");
+            logger(1, LOG_LEVEL, PROCESS_ID, "Failed to connect to peer %d\n", i+1);
             exit(1);
         }
         freeaddrinfo(servinfo);
-        logger(0, LOG_LEVEL, PROCESS_ID, "Connected to peer\n");
+        logger(0, LOG_LEVEL, PROCESS_ID, "Connected to peer %d\n", i+1);
 
         // if (send(sockfd, buf, sizeof(buf), 0) == -1)
         if(send(sockfd, header_buf, sizeof(Header), 0) == -1)
@@ -314,8 +315,8 @@ void send_req(JoinMessage *msg)
         {
             logger(0, LOG_LEVEL, PROCESS_ID, "Only sent %d instead of %d\n", sent, sizeof(req_buf));
         }
-        logger(0, LOG_LEVEL, PROCESS_ID, "Sent %d bytes of req message\n", sent);
-        logger(0, LOG_LEVEL, PROCESS_ID, "%d\n", unpacki32(req_buf+8));
+        //logger(0, LOG_LEVEL, PROCESS_ID, "Sent %d bytes of req message\n", sent);
+        //logger(0, LOG_LEVEL, PROCESS_ID, "%d\n", unpacki32(req_buf+8));
         close(sockfd);
 
     }
@@ -633,7 +634,11 @@ int main(int argc, char *argv[])
         // because we all know all of the members at the start
         // this just an int[] that just references hosts array on send
     MEMBERSHIP_LIST = malloc(NUM_HOSTS * sizeof(int));
-    memset(MEMBERSHIP_LIST, 0, sizeof(*MEMBERSHIP_LIST));
+    //memset(MEMBERSHIP_LIST, 0, sizeof(*MEMBERSHIP_LIST));
+    for (j = 0; j < NUM_HOSTS; j++)
+    {
+        MEMBERSHIP_LIST[j] = 0;
+    }
     if (PROCESS_ID == 1)
     {
         IS_LEADER = True;
@@ -678,6 +683,7 @@ int main(int argc, char *argv[])
         for (j = 0; j < NUM_HOSTS; j++)
         {
             if (RECEIVED_HEARTBEATS[j]->recvd_time == NULL)
+            //if (MEMBERSHIP_LIST[j] == 0 || (j+1) == PROCESS_ID)
             {
                 continue;
             }

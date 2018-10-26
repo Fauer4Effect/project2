@@ -682,8 +682,10 @@ int main(int argc, char *argv[])
         // check which process have died
         for (j = 0; j < NUM_HOSTS; j++)
         {
+            //logger(0, LOG_LEVEL, PROCESS_ID, "Verifying for %d\n", j+1);
             if (RECEIVED_HEARTBEATS[j]->recvd_time == NULL)
             //if (MEMBERSHIP_LIST[j] == 0 || (j+1) == PROCESS_ID)
+            //if (MEMBERSHIP_LIST[j] == 0)
             {
                 continue;
             }
@@ -696,6 +698,10 @@ int main(int argc, char *argv[])
             {
                 printf("Peer %d not reachable\n", j+1);
                 RECEIVED_HEARTBEATS[j]->recvd_time = NULL;
+            }
+            else
+            {
+                logger(0, LOG_LEVEL, PROCESS_ID, "Peer %d still alive\n", j+1);
             }
         }
 

@@ -12,6 +12,8 @@
 #include <netdb.h>
 
 #include "failure.h"
+#include "messages.h"
+#include "serialize.h"
 
 #define FAILURE_PORT 66666
 
@@ -59,6 +61,7 @@ int bind_failure_detector()
         exit(1);
     }
     freeaddrinfo(servinfo);
+    logger(0, LOG_LEVEL, PROCESS_ID, "Bound failure detector socket\n");
 
     return sockfd;
 }
@@ -66,7 +69,12 @@ int bind_failure_detector()
 // multicast the heartbeat
 void send_heartbeat(int process_id)
 {
-    
+    HeartBeat *beat = malloc(sizeof(HeartBeat));
+    beat->process_id = PROCESS_ID;
+
+    unsigned char *buf = malloc(sizeof(HeartBeat));
+    pack_heart_beat(beat, buf);
+
     int sockfd;
     struct addrinfo hints, *servinfo, *p;
     int rv;
@@ -105,12 +113,36 @@ void send_heartbeat(int process_id)
         freeaddrinfo(servinfo);
         logger(0, LOG_LEVEL, PROCESS_ID, "Connected to peer\n");
 
-        sendto(sockfd, buf, 2, 0, p->ai_addr, p->ai_addrlen);
-        numbytes = sendto(sockfd, buf, buf[0]+2, 0, p->ai_addr, p->ai_addrlen);
+        sendto(sockfd, buf, sizeof(HeartBeat), 0, p->ai_addr, p->ai_addrlen);
 
         close(sockfd);
     }
     logger(0, LOG_LEVEL, PROCESS_ID, "HeartBeat Sent\n");
-    
+
     return;
+}
+
+int get_heartbeat(int sockfd)
+{
+    struct sockaddr_storage their_addr;
+    socklen_t addr_len = sizeof(their_addr);
+    int numbytes;
+    unsigned char buf[sizeof(HeartBeat)];
+    memset(&buf, 0, sizeof(buf));
+
+    if ((numbytes = recvfrom(sockfd, buf, sizeof(HeartBeat), 0, 
+        (struct sockaddr *)&their_addr, &addr_len)) != sizeof(HeartBeat))
+    {
+        logger(1, LOG_LEVEL, PROCESS_ID, "Did not receive full HeartBeat\n");
+        return -1;
+    }
+
+    HeartBeat *beat = malloc(sizeof(HeartBeat));
+    unpack_heart_beat(beat, buf);
+
+    struct timeval *cur_time;
+    gettimeofday(cur_time, NULL);
+    RECEIVED_HEARTBEATS[(beat->process_id)-1]->recvd_time = malloc(sizeof(struct timeval));
+    RECEIVED_HEARTBEATS[(beat->process_id)-1]->recvd_time->tv_sec = cur_time->tv_sec;
+    RECEIVED_HEARTBEATS[(beat->process_id)-1]->recvd_time->tv_usec = cur_time->tv_usec;
 }

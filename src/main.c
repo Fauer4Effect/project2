@@ -15,6 +15,7 @@
 #include "messages.h"
 #include "serialize.h"
 #include "logging.h"
+#include "failure.h"
 
 #define LOG_LEVEL DEBUG                             // set log level to debug for logging
 #define max(A, B) ((A) > (B) ? (A) : (B))
@@ -34,6 +35,7 @@ int VIEW_ID = 1;
 int REQUEST_ID = 1;
 StoredOperation **STORED_OPS;
 int FAILURE_DETECTOR_SOCKET;
+HeartBeat **RECEIVED_HEARTBEATS;
 
 void *get_in_addr(struct sockaddr *sa)
 {
@@ -540,6 +542,9 @@ int main(int argc, char *argv[])
     fd_set read_fds;        // temp file descriptor list for select()
     int fdmax;              // maximum file descriptor number
 
+    fd_set failure_master;  // master file descriptor for failure detector
+    fd_set failure_tmp;     // file descriptor list for select() failure detector
+
     int listener;           // listening socket descriptor
     int newfd;              // newly accept()ed socket descriptor
     struct sockaddr_storage remoteaddr;     // client address
@@ -554,6 +559,23 @@ int main(int argc, char *argv[])
 
     FD_ZERO(&master);       // clear the master and temp sets
     FD_ZERO(&read_fds);
+
+    // bind the failure detector
+    FAILURE_DETECTOR_SOCKET = bind_failure_detector();
+    // zero out and set the file descriptor sets
+    FD_ZERO(&failure_master);
+    FD_ZERO(&failure_tmp);
+    FD_SET(FAILURE_DETECTOR_SOCKET, &failure_master);
+
+    // initialize keeping track of when heartbeats are received
+    // if process has not sent a heartbeat then it is NULL
+    RECEIVED_HEARTBEATS = malloc(NUM_HOSTS * sizeof(ReceivedHeartBeat));
+    int j;
+    for (j = 0; j < NUM_HOSTS; j++)
+    {
+        RECEIVED_HEARTBEATS[j] = malloc(sizeof(ReceivedHeartBeat));
+        RECEIVED_HEARTBEATS[j]->recvd_time = NULL;
+    }
 
     // get us a socket and bind it
     memset(&hints, 0, sizeof(hints));
@@ -627,18 +649,59 @@ int main(int argc, char *argv[])
         request_to_join();
     }
 
-    // setup timeout for select to 2.5 sec
+    // declare timeout for select
     struct timeval select_timeout;
-    select_timeout.tv_sec = 2;
-    select_timeout.tv_usec = 500000;
 
     // listening for connections
     for (;;)
     {
         read_fds = master;      // copy fd set
+        failure_tmp = failure_master;
+    
+        // setup timeout for select to 2.5 sec, some unixes change this everytime
+        select_timeout.tv_sec = 2;
+        select_timeout.tv_usec = 500000;
+    
+        // select for failure detector and get the heartbeat if there is one
+        if (select(FAILURE_DETECTOR_SOCKET+1, &failure_tmp, NULL, NULL, &select_timeout) == -1)
+        {
+            logger(1, LOG_LEVEL, PROCESS_ID, "Failed on select failure det\n");
+            exit(1);
+        }
+        if (FD_ISSET(FAILURE_DETECTOR_SOCKET, &failure_tmp))
+        {
+            logger(0, LOG_LEVEL, PROCESS_ID, "Received HeartBeat\n");
+            int success = get_heartbeat(FAILURE_DETECTOR_SOCKET);
+        }
+
+        // check which process have died
+        for (j = 0; j < NUM_HOSTS; j++)
+        {
+            if (RECEIVED_HEARTBEATS[j]->recvd_time == NULL)
+            {
+                continue;
+            }
+
+            struct timeval cur_time;
+            gettimeofday(&cur_time, NULL);
+
+            // timeout is 2.5 for heart beats so if we've waited more than 2x that
+            if ((cur_time.tv_sec - RECEIVED_HEARTBEATS[j]->recvd_time->tv_sec) >= 5)
+            {
+                printf("Peer %d not reachable\n", j+1);
+                RECEIVED_HEARTBEATS[j]->recvd_time = NULL;
+            }
+        }
+
+        // send heartbeat
+        send_heartbeat(PROCESS_ID);
+
+        select_timeout.tv_sec = 2;
+        select_timeout.tv_usec = 500000;
+
         if (select(fdmax+1, &read_fds, NULL, NULL, &select_timeout) == -1)
         {
-            logger(1, LOG_LEVEL, PROCESS_ID, "Failed on select\n");
+            logger(1, LOG_LEVEL, PROCESS_ID, "Failed on select tcp listener\n");
             exit(1);
         }
 

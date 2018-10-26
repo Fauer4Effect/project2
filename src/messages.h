@@ -40,3 +40,7 @@ typedef struct {
     uint32_t peer_id;
     uint32_t num_oks;
 } StoredOperation;
+
+typedef struct {
+    uint32_t process_id;
+} HeartBeat;

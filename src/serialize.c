@@ -59,6 +59,8 @@ void pack_join_message(JoinMessage *msg, unsigned char *buf)
 void unpack_join_message(JoinMessage *msg, unsigned char *buf)
 {
     msg->process_id = unpacki32(buf);
+
+    return;
 }
 
 void pack_req_message(ReqMessage *msg, unsigned char *buf)
@@ -146,6 +148,20 @@ void unpack_view_message(NewViewMessage *view, unsigned char *buf)
         buf += 4;
         index++;
     }
+
+    return;
+}
+
+void pack_heart_beat(HeartBeat *beat, unsigned char *buf)
+{
+    packi32(buf, beat->process_id);
+
+    return;
+}
+
+void unpack_heart_beat(HeartBeat *beat, unsigned char *buf)
+{
+    beat->process_id = unpacki32(buf);
 
     return;
 }

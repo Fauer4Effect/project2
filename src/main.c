@@ -704,6 +704,7 @@ int main(int argc, char *argv[])
             if ((cur_time.tv_sec - RECEIVED_HEARTBEATS[j]->recvd_time->tv_sec) >= 5)
             {
                 printf("Peer %d not reachable\n", j+1);
+                fflush(stdout);
                 RECEIVED_HEARTBEATS[j]->recvd_time = NULL;
             }
         }
@@ -899,6 +900,9 @@ int main(int argc, char *argv[])
                                         printf("\t%d\n", MEMBERSHIP_LIST[j]);
                                     }
                                 }
+
+                                fflush(stdout);
+
                                 free(view->membership_list);
                                 free(view);
                                 free(view_buf);

@@ -680,12 +680,17 @@ int main(int argc, char *argv[])
             logger(1, LOG_LEVEL, PROCESS_ID, "Failed on select failure det\n");
             exit(1);
         }
-        if (FD_ISSET(FAILURE_DETECTOR_SOCKET, &failure_tmp))
+        //if (FD_ISSET(FAILURE_DETECTOR_SOCKET, &failure_tmp))
+        while (FD_ISSET(FAILURE_DETECTOR_SOCKET, &failure_tmp))
         {
             logger(0, LOG_LEVEL, PROCESS_ID, "Received HeartBeat\n");
             get_heartbeat(FAILURE_DETECTOR_SOCKET);
+            // select again because heartbeats get stacked up
+            failure_tmp = failure_master;
+            select_timeout.tv_sec = 0;
+            select_timeout.tv_usec = 500000;
+            select(FAILURE_DETECTOR_SOCKET+1, &failure_tmp, NULL, NULL, &select_timeout);
         }
-
 
         // check which process have died
         for (j = 0; j < NUM_HOSTS; j++)
@@ -701,7 +706,7 @@ int main(int argc, char *argv[])
             gettimeofday(&cur_time, NULL);
 
             // timeout is 2.5 for heart beats so if we've waited more than 2x that
-            if ((cur_time.tv_sec - RECEIVED_HEARTBEATS[j]->recvd_time->tv_sec) >= 5)
+            if ((cur_time.tv_sec - RECEIVED_HEARTBEATS[j]->recvd_time->tv_sec) >= 4)
             {
                 printf("Peer %d not reachable\n", j+1);
                 fflush(stdout);
@@ -711,7 +716,7 @@ int main(int argc, char *argv[])
 
         // send heartbeat
         gettimeofday(&cur_time, NULL);
-        if (cur_time.tv_sec - LAST_HEARTBEAT_SENT > 1)
+        if (cur_time.tv_sec - LAST_HEARTBEAT_SENT > 2)
         {
             send_heartbeat(PROCESS_ID);
             LAST_HEARTBEAT_SENT = cur_time.tv_sec;

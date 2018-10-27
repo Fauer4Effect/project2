@@ -229,7 +229,10 @@ void store_operation(ReqMessage *req)
     return;
 }
 
-void send_req(JoinMessage *msg)
+// TODO make this generic
+// send_req(OpType, JoinMessage)
+//void send_req(JoinMessage *msg)
+void send_req(uint32_t peer_id, uint32_t op_type)
 {
     Header *header = malloc(sizeof(Header));
     header->msg_type = ReqMessageType;                
@@ -238,8 +241,10 @@ void send_req(JoinMessage *msg)
     ReqMessage *req = malloc(sizeof(ReqMessage));
     req->request_id = REQUEST_ID++;
     req->curr_view_id = VIEW_ID;
-    req->op_type = OpAdd;
-    req->peer_id = msg->process_id;
+    // req->op_type = OpAdd;
+    // req->peer_id = msg->process_id;
+    req->op_type = op_type;
+    req->peer_id = peer_id;
 
     logger(0, LOG_LEVEL, PROCESS_ID, "Sending Req\n");
     logger(0, LOG_LEVEL, PROCESS_ID, "\trequest id: %d\n", req->request_id);
@@ -785,7 +790,8 @@ int main(int argc, char *argv[])
                                 unpack_join_message(join, join_buf);
 
                                 // send req to everyone else
-                                send_req(join);
+                                // send_req(join);
+                                send_req(join->process_id, OpAdd);
                 
                                 // free everything
                                 free(join);

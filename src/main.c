@@ -229,8 +229,6 @@ void store_operation(ReqMessage *req)
     return;
 }
 
-// TODO make this generic
-// send_req(OpType, JoinMessage)
 //void send_req(JoinMessage *msg)
 void send_req(uint32_t peer_id, uint32_t op_type)
 {
@@ -710,6 +708,8 @@ int main(int argc, char *argv[])
 
             gettimeofday(&cur_time, NULL);
 
+            // TODO if you are the leader and not reachable then you need to send
+            // del req
             // timeout is 2.5 for heart beats so if we've waited more than 2x that
             if ((cur_time.tv_sec - RECEIVED_HEARTBEATS[j]->recvd_time->tv_sec) >= 4)
             {
@@ -855,6 +855,8 @@ int main(int argc, char *argv[])
                                     }
                                 }
 
+                                // FIXME this needs to handle both adding and removing from
+                                // membership list based on the op type
                                 // if received all oks
                                 if (STORED_OPS[j]->num_oks == MEMBERSHIP_SIZE)
                                 {
@@ -896,6 +898,10 @@ int main(int argc, char *argv[])
                                 VIEW_ID = view->view_id;
                                 logger(0, LOG_LEVEL, PROCESS_ID, "Updated View id\n");
                                 // update membership list
+                                // FIXME this needs to handle both adding and removing from 
+                                // membership list
+                                // XXX probably easiest just to clear out the membership list
+                                // and then re initialize based on the new view
                                 for (j = 0; j < view->membership_size; j++)
                                 {
                                     add_to_membership_list(view->membership_list[j]);

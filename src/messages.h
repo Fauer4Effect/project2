@@ -5,6 +5,7 @@
 #define JoinMessageType 4
 
 #define OpAdd 1
+#define OpDel 2
 
 typedef struct {
     uint32_t request_id;

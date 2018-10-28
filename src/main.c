@@ -38,6 +38,7 @@ StoredOperation *STORED_OP;
 int FAILURE_DETECTOR_SOCKET;
 ReceivedHeartBeat **RECEIVED_HEARTBEATS;
 time_t LAST_HEARTBEAT_SENT;
+int LEADER_ID = 1;              // default is that first peer in host list is leader
 
 void *get_in_addr(struct sockaddr *sa)
 {
@@ -173,7 +174,7 @@ void request_to_join()
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
 
-    if ((rv = getaddrinfo(HOSTS[0], PORT, &hints, &servinfo)) != 0)
+    if ((rv = getaddrinfo(HOSTS[LEADER_ID-1], PORT, &hints, &servinfo)) != 0)
     {
         logger(1, LOG_LEVEL, PROCESS_ID, "getaddrinfo %s\n", gai_strerror(rv));
         exit(1);
@@ -444,6 +445,94 @@ void send_ok(ReqMessage *req)
     return;
 }
 
+void send_pending_op()
+{
+    Header *header = malloc(sizeof(Header));
+    header->msg_type = PendingOpType;                
+    header->size = sizeof(PendingOp);
+
+    PendingOp *pending = malloc(sizeof(PendingOp));
+    if (STORED_OP != 0)
+    {
+        pending->request_id = STORED_OP->request_id;
+        pending->curr_view_id = VIEW_ID;
+        pending->op_type = STORED_OP->op_type;
+        pending->peer_id = STORED_OP->peer_id;
+    }
+    else 
+    {
+        pending->request_id = 0;
+        pending->curr_view_id = VIEW_ID;
+        pending->op_type = OpNothing;
+        pending->peer_id = 0;
+    }
+
+    unsigned char *header_buf = malloc(sizeof(Header));
+    unsigned char *pending_buf = malloc(sizeof(PendingOp));
+
+    pack_header(header, header_buf);
+    pack_pending_op(pending, pending_buf);
+    logger(0, LOG_LEVEL, PROCESS_ID, "Message and header setup and packed\n");
+
+    // since they've been packed we don't need the structs any more
+    free(header);
+    free(pending);
+
+    int sockfd;
+    struct addrinfo hints, *servinfo, *p;
+    int rv;
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+
+    if ((rv = getaddrinfo(HOSTS[LEADER_ID-1], PORT, &hints, &servinfo)) != 0)
+    {
+        logger(1, LOG_LEVEL, PROCESS_ID, "getaddrinfo %s\n", gai_strerror(rv));
+        exit(1);
+    }
+
+    for(p = servinfo; p != NULL; p = p->ai_next)
+    {
+        if ((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1)
+        {
+            continue;
+        }
+        if (connect(sockfd, p->ai_addr, p->ai_addrlen) == -1)
+        {
+            close(sockfd);
+            continue;
+        }
+        break;
+    }
+
+    if (p == NULL)
+    {
+        logger(1, LOG_LEVEL, PROCESS_ID, "Failed to connect to leader\n");
+        exit(1);
+    }
+    freeaddrinfo(servinfo);
+    logger(0, LOG_LEVEL, PROCESS_ID, "Connected to leader\n");
+
+    // if (send(sockfd, buf, sizeof(buf), 0) == -1)
+    if (send(sockfd, header_buf, sizeof(Header), 0) == -1)
+    {
+        logger(1, LOG_LEVEL, PROCESS_ID, "Could not send ok to leader\n");
+    }
+    send(sockfd, pending_buf, sizeof(OkMessage), 0);
+    close(sockfd);
+
+    logger(0, LOG_LEVEL, PROCESS_ID, "Ok Sent\n");
+
+    // don't need the data anymore
+    // free(buf);
+    free(header_buf);
+    free(pending_buf);
+
+    return;
+}
+
+
 void send_new_view()
 {   
     Header *header = malloc(sizeof(Header));
@@ -536,6 +625,90 @@ void send_new_view()
     // free(buf);
     free(header_buf);
     free(new_view_buf);
+
+    return;
+}
+
+void send_new_leader_msg()
+{
+    Header *header = malloc(sizeof(Header));
+    header->msg_type = NewLeaderMessageType;  
+    // view_id + membership_size + all_members              
+    header->size = sizeof(NewLeaderMessage);
+
+    NewLeaderMessage *leader = malloc(sizeof(NewLeaderMessage));
+    leader->request_id = REQUEST_ID++;
+    leader->curr_view_id = VIEW_ID;
+    leader->op_type = OpPending;
+
+    unsigned char *header_buf = malloc(sizeof(Header));
+    unsigned char *new_leader_buf = malloc(header->size);
+
+    // pack_header(header, buf);
+    pack_header(header, header_buf);
+    pack_new_leader(leader, new_leader_buf);
+
+    int sockfd;
+    struct addrinfo hints, *servinfo, *p;
+    int rv;
+
+    int i;
+    for (i = 0; i < NUM_HOSTS; i++)
+    {
+        // only need to send to hosts that are members and don't need to send to self
+        //if (MEMBERSHIP_LIST[i] == 0 || (i+1) == PROCESS_ID)
+        if (MEMBERSHIP_LIST[i] == 0)
+        {
+            continue;
+        }
+
+        memset(&hints, 0, sizeof(hints));
+        hints.ai_family = AF_UNSPEC;
+        hints.ai_socktype = SOCK_STREAM;
+
+        if ((rv = getaddrinfo(HOSTS[i], PORT, &hints, &servinfo)) != 0)
+        {
+            logger(1, LOG_LEVEL, PROCESS_ID, "getaddrinfo %s\n", gai_strerror(rv));
+            exit(1);
+        }
+
+        for(p = servinfo; p != NULL; p = p->ai_next)
+        {
+            if ((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1)
+            {
+                continue;
+            }
+            if (connect(sockfd, p->ai_addr, p->ai_addrlen) == -1)
+            {
+                close(sockfd);
+                continue;
+            }
+            break;
+        }
+
+        if (p == NULL)
+        {
+            logger(1, LOG_LEVEL, PROCESS_ID, "Failed to connect to peer\n");
+            exit(1);
+        }
+        freeaddrinfo(servinfo);
+        logger(0, LOG_LEVEL, PROCESS_ID, "Connected to peer\n");
+
+        // if (send(sockfd, buf, sizeof(buf), 0) == -1)
+        if (send(sockfd, header_buf, sizeof(Header), 0) == -1)
+        {
+            logger(1, LOG_LEVEL, PROCESS_ID, "Could not send new_view to peer\n");
+        }
+        send(sockfd, new_leader_buf, header->size, 0);
+        close(sockfd);
+
+    }
+    // since they've been packed we don't need the structs any more
+    free(header);
+    free(leader);
+    // free(buf);
+    free(header_buf);
+    free(new_leader_buf);
 
     return;
 }
@@ -752,6 +925,27 @@ int main(int argc, char *argv[])
                 {
                     edit_membership_list(j+1, OpDel);
                     send_req(j+1, OpDel);
+                }
+
+                // if the leader has crashed
+                // go through membership list and leader is now lowest id that is member
+                if (j+1 == LEADER_ID)
+                {
+                    MEMBERSHIP_LIST[j] = 0;
+                    int k;
+                    for (k = 0; k < NUM_HOSTS; k++)
+                    {
+                        if (MEMBERSHIP_LIST[k] != 0)
+                        {
+                            LEADER_ID = k;
+                            // if you are new leader
+                            if (LEADER_ID == PROCESS_ID)
+                            {
+                                IS_LEADER = True;
+                                send_new_leader_msg();
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1002,6 +1196,10 @@ int main(int argc, char *argv[])
                                     }
                                 }
 
+                                // nothing pending anymore
+                                free(STORED_OP);
+                                STORED_OP = 0;
+
                                 // trigger them to resend heartbeats when someone new joins
                                 // sometimes they still think someone has failed who is still
                                 // alive
@@ -1013,6 +1211,56 @@ int main(int argc, char *argv[])
                                 free(view);
                                 free(view_buf);
                                 break;
+
+                            case NewLeaderMessageType:
+                                logger(0, LOG_LEVEL, PROCESS_ID, "Received New Leader Message\n");
+                                NewLeaderMessage *leader = malloc(sizeof(NewLeaderMessage));
+                                unsigned char *leader_buf = malloc(header->size);
+                                if ((nbytes = recv(i, leader_buf, header->size, 0)) <= 0)
+                                {
+                                    close(i);
+                                    FD_CLR(i, &master);
+                                }
+                                unpack_new_leader(leader, leader_buf);
+                                logger(0, LOG_LEVEL, PROCESS_ID, "New Leader unpacked\n");
+
+                                send_pending_op();
+                                break;
+
+                            case PendingOpType:
+                                logger(0, LOG_LEVEL, PROCESS_ID, "Received Pending Op\n");
+                                PendingOp *pending = malloc(sizeof(PendingOp));
+                                unsigned char *pending_buf = malloc(header->size);
+                                if ((nbytes = recv(i, pending_buf, header->size, 0)) <= 0)
+                                {
+                                    close(i);
+                                    FD_CLR(i, &master);
+                                }
+                                unpack_pending_op(pending, pending_buf);
+                                logger(0, LOG_LEVEL, PROCESS_ID, "Pending Op unpacked\n");
+
+                                if (pending->op_type == OpNothing)
+                                {
+                                    break;
+                                }
+                                else if (pending->op_type == OpAdd)
+                                {
+                                    edit_membership_list(pending->peer_id, OpAdd);
+                                }
+                                else if (pending->op_type == OpDel)
+                                {
+                                    edit_membership_list(pending->peer_id, OpDel);
+                                }
+
+                                STORED_OP = 0;
+                                VIEW_ID++;
+                                send_new_view();
+                                
+                                free(pending);
+                                free(pending_buf);
+
+                                break;
+
                             default:
                                 break;
                         }

@@ -165,3 +165,52 @@ void unpack_heart_beat(HeartBeat *beat, unsigned char *buf)
 
     return;
 }
+
+void pack_new_leader(NewLeaderMessage *msg, unsigned char *buf)
+{
+    packi32(buf, msg->request_id);
+    buf += 4;
+    packi32(buf, msg->curr_view_id);
+    buf += 4;
+    packi32(buf, msg->op_type);
+
+    return;
+}
+
+void unpack_new_leader(NewLeaderMessage *msg, unsigned char *buf)
+{
+    msg->request_id = unpacki32(buf);
+    buf += 4;
+    msg->curr_view_id = unpacki32(buf);
+    buf += 4;
+    msg->op_type = unpacki32(buf);
+
+    return;
+}
+
+
+void pack_pending_op(PendingOp *msg, unsigned char *buf)
+{
+    packi32(buf, msg->request_id);
+    buf += 4;
+    packi32(buf, msg->curr_view_id);
+    buf += 4;
+    packi32(buf, msg->op_type);
+    buf += 4;
+    packi32(buf, msg->peer_id);
+
+    return;
+}
+
+void unpack_pending_op(PendingOp *msg, unsigned char *buf)
+{
+    msg->request_id = unpacki32(buf);
+    buf += 4;
+    msg->curr_view_id = unpacki32(buf);
+    buf += 4;
+    msg->op_type = unpacki32(buf);
+    buf += 4;
+    msg->peer_id = unpacki32(buf);
+
+    return;
+}

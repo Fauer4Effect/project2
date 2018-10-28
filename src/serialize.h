@@ -29,3 +29,11 @@ void unpack_view_message(NewViewMessage *view, unsigned char *buf);
 void pack_heart_beat(HeartBeat *beat, unsigned char *buf);
 
 void unpack_heart_beat(HeartBeat *beat, unsigned char *buf);
+
+void pack_new_leader(NewLeaderMessage *msg, unsigned char *buf);
+
+void unpack_new_leader(NewLeaderMessage *msg, unsigned char *buf);
+
+void pack_pending_op(PendingOp *msg, unsigned char *buf);
+
+void unpack_pending_op(PendingOp *msg, unsigned char *buf);

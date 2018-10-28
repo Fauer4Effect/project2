@@ -33,7 +33,8 @@ int MEMBERSHIP_SIZE = 0;
 Boolean IS_LEADER = False;
 int VIEW_ID = 1;
 int REQUEST_ID = 1;
-StoredOperation **STORED_OPS;
+// StoredOperation **STORED_OPS;
+StoredOperation *STORED_OP;
 int FAILURE_DETECTOR_SOCKET;
 ReceivedHeartBeat **RECEIVED_HEARTBEATS;
 time_t LAST_HEARTBEAT_SENT;
@@ -220,27 +221,38 @@ void request_to_join()
 
 void store_operation(ReqMessage *req)
 {
-    int i;
-    for (i = 0; i < MAX_OPS; i++)
-    {
-        if (STORED_OPS[i] == 0)
-        {
-            logger(0, LOG_LEVEL, PROCESS_ID, "Found spot for stored op\n");
-            STORED_OPS[i] = malloc(sizeof(StoredOperation));
+    // int i;
+    // for (i = 0; i < MAX_OPS; i++)
+    // {
+    //     if (STORED_OPS[i] == 0)
+    //     {
+    //         logger(0, LOG_LEVEL, PROCESS_ID, "Found spot for stored op\n");
+    //         STORED_OPS[i] = malloc(sizeof(StoredOperation));
 
-            STORED_OPS[i]->request_id = req->request_id;
-            STORED_OPS[i]->curr_view_id = req->curr_view_id;
-            STORED_OPS[i]->op_type = req->op_type;
-            STORED_OPS[i]->peer_id = req->peer_id;
-            STORED_OPS[i]->num_oks = 0;
-            //STORED_OPS[i]->num_oks = 1;             // if you are leader then this is helpful
-                                                    // for everyone else it's kind of dumb
+    //         STORED_OPS[i]->request_id = req->request_id;
+    //         STORED_OPS[i]->curr_view_id = req->curr_view_id;
+    //         STORED_OPS[i]->op_type = req->op_type;
+    //         STORED_OPS[i]->peer_id = req->peer_id;
+    //         STORED_OPS[i]->num_oks = 0;
+    //         //STORED_OPS[i]->num_oks = 1;             // if you are leader then this is helpful
+    //                                                 // for everyone else it's kind of dumb
 
-            logger(0, LOG_LEVEL, PROCESS_ID, "Stored op: %d with view: %d\n", 
-                    STORED_OPS[i]->request_id, STORED_OPS[i]->curr_view_id);
-            break;
-        }
-    }
+    //         logger(0, LOG_LEVEL, PROCESS_ID, "Stored op: %d with view: %d\n", 
+    //                 STORED_OPS[i]->request_id, STORED_OPS[i]->curr_view_id);
+    //         break;
+    //     }
+    // }
+    // return;
+    STORED_OP = (StoredOperation *)malloc(sizeof(StoredOperation));
+    STORED_OP->request_id = req->request_id;
+    STORED_OP->curr_view_id = req->curr_view_id;
+    STORED_OP->op_type = req->op_type;
+    STORED_OP->peer_id = req->peer_id;
+    STORED_OP->num_oks = 0;
+
+    logger(0, LOG_LEVEL, PROCESS_ID, "Stored op: %d with view %d\n", 
+        STORED_OP->request_id, STORED_OP->curr_view_id);
+
     return;
 }
 
@@ -552,9 +564,11 @@ int main(int argc, char *argv[])
     }
     logger(0, LOG_LEVEL, PROCESS_ID, "Command line parsed\n");
 
-    STORED_OPS = malloc(MAX_OPS * sizeof(StoredOperation *));
-    memset(STORED_OPS, 0, sizeof(*STORED_OPS));
-    logger(0, LOG_LEVEL, PROCESS_ID, "Setup stored operations\n");
+    // STORED_OPS = malloc(MAX_OPS * sizeof(StoredOperation *));
+    // memset(STORED_OPS, 0, sizeof(*STORED_OPS));
+    // logger(0, LOG_LEVEL, PROCESS_ID, "Setup stored operations\n");
+    STORED_OP = 0;
+    logger(0, LOG_LEVEL, PROCESS_ID, "Setup stored operation\n");
 
     // setup all the socket shit
     logger(0, LOG_LEVEL, PROCESS_ID, "Setting up networking\n");
@@ -863,42 +877,71 @@ int main(int argc, char *argv[])
                                 unpack_ok_message(ok, ok_buf);
                                 logger(0, LOG_LEVEL, PROCESS_ID, "OK unpacked\n");
                                 // update ok list for request id and view
-                                int j;
-                                for (j = 0; j < MAX_OPS; j++)
+                                // int j;
+                                // for (j = 0; j < MAX_OPS; j++)
+                                // {
+                                //     if (STORED_OPS[j] == 0)
+                                //     {
+                                //         continue;
+                                //         logger(0, LOG_LEVEL, PROCESS_ID, "Empty stored op\n");
+                                //     }
+                                //     if (STORED_OPS[j]->request_id == ok->request_id && 
+                                //             STORED_OPS[j]->curr_view_id == ok->curr_view_id)
+                                //     {
+                                //         //STORED_OPS[i]->num_oks ++;
+                                //         logger(0, LOG_LEVEL, PROCESS_ID, "Found stored message\n");
+                                //         STORED_OPS[j]->num_oks = STORED_OPS[j]->num_oks + 1;
+                                //         break;
+                                //     }
+                                // }
+
+                                if (STORED_OP->request_id == ok->request_id &&
+                                    STORED_OP->curr_view_id == ok->curr_view_id)
                                 {
-                                    if (STORED_OPS[j] == 0)
-                                    {
-                                        continue;
-                                        logger(0, LOG_LEVEL, PROCESS_ID, "Empty stored op\n");
-                                    }
-                                    if (STORED_OPS[j]->request_id == ok->request_id && 
-                                            STORED_OPS[j]->curr_view_id == ok->curr_view_id)
-                                    {
-                                        //STORED_OPS[i]->num_oks ++;
-                                        logger(0, LOG_LEVEL, PROCESS_ID, "Found stored message\n");
-                                        STORED_OPS[j]->num_oks = STORED_OPS[j]->num_oks + 1;
-                                        break;
-                                    }
+                                    logger(0, LOG_LEVEL, PROCESS_ID, "Matched pending operation\n");
+                                    STORED_OP->num_oks = STORED_OP->num_oks + 1;
+                                }
+                                else
+                                {
+                                    logger(1, LOG_LEVEL, PROCESS_ID, 
+                                        "Can only handle one pending op at a time\n");
+                                    exit(1);
                                 }
 
                                 // FIXME this needs to handle both adding and removing from
                                 // membership list based on the op type
                                 // if received all oks
-                                if (STORED_OPS[j]->num_oks == MEMBERSHIP_SIZE)
+                                // if (STORED_OPS[j]->num_oks == MEMBERSHIP_SIZE)
+                                // {
+                                //     if (STORED_OPS[j]->op_type == OpAdd)
+                                //     {
+                                //         // add peer to your membership list
+                                //         edit_membership_list(STORED_OPS[j]->peer_id, OpAdd);
+                                //     }
+                                //     else if (STORED_OPS[j]->op_type == OpDel)
+                                //     {
+                                //         edit_membership_list(STORED_OPS[j]->peer_id, OpDel);
+                                //     }
+
+                                //     //increment view id
+                                //     VIEW_ID++;
+                                //     // send new view
+                                //     send_new_view();
+                                // }
+
+                                if (STORED_OP->num_oks == MEMBERSHIP_SIZE)
                                 {
-                                    if (STORED_OPS[j]->op_type == OpAdd)
+                                    if (STORED_OP->op_type == OpAdd)
                                     {
-                                        // add peer to your membership list
-                                        edit_membership_list(STORED_OPS[j]->peer_id, OpAdd);
+                                        edit_membership_list(STORED_OP->peer_id, OpAdd);
                                     }
-                                    else if (STORED_OPS[j]->op_type == OpDel)
+                                    else if (STORED_OP->op_type == OpDel)
                                     {
-                                        edit_membership_list(STORED_OPS[j]->peer_id, OpDel);
+                                        edit_membership_list(STORED_OP->peer_id, OpDel);
                                     }
 
-                                    //increment view id
+                                    STORED_OP = 0;
                                     VIEW_ID++;
-                                    // send new view
                                     send_new_view();
                                 }
                                 // else
@@ -958,6 +1001,11 @@ int main(int argc, char *argv[])
                                         printf("\t%d\n", MEMBERSHIP_LIST[j]);
                                     }
                                 }
+
+                                // trigger them to resend heartbeats when someone new joins
+                                // sometimes they still think someone has failed who is still
+                                // alive
+                                LAST_HEARTBEAT_SENT = 0;
 
                                 fflush(stdout);
 

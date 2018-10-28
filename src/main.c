@@ -115,14 +115,29 @@ char **open_parse_hostfile(char *hostfile)
     return hosts;
 }
 
-void add_to_membership_list(int process_id)
+void edit_membership_list(int process_id, uint32_t op_type)
 {
-    if (MEMBERSHIP_LIST[process_id-1] == 0)
+    if (op_type == OpAdd)
     {
-        MEMBERSHIP_LIST[process_id-1] = process_id;
-        logger(0, LOG_LEVEL, PROCESS_ID, "Stored process %d in membership list\n", process_id);
-        MEMBERSHIP_SIZE++;
-        return;
+        if (MEMBERSHIP_LIST[process_id-1] == 0)
+        {
+            MEMBERSHIP_LIST[process_id-1] = process_id;
+            logger(0, LOG_LEVEL, PROCESS_ID, "Stored process %d in membership list\n", process_id);
+            MEMBERSHIP_SIZE++;
+            // logger(0, LOG_LEVEL, PROCESS_ID, "Membership list is of size %d\n", MEMBERSHIP_SIZE);
+            return;
+        }
+    }
+    if (op_type == OpDel)
+    {
+        if (MEMBERSHIP_LIST[process_id-1] != 0)
+        {
+            MEMBERSHIP_LIST[process_id-1] = 0;
+            logger(0, LOG_LEVEL, PROCESS_ID, "Removed process %d from membership\n", process_id);
+            MEMBERSHIP_SIZE--;
+            // logger(0, LOG_LEVEL, PROCESS_ID, "Membership list is of size %d\n", MEMBERSHIP_SIZE);
+            return;
+        }
     }
 }
 
@@ -229,7 +244,8 @@ void store_operation(ReqMessage *req)
     return;
 }
 
-void send_req(JoinMessage *msg)
+//void send_req(JoinMessage *msg)
+void send_req(uint32_t peer_id, uint32_t op_type)
 {
     Header *header = malloc(sizeof(Header));
     header->msg_type = ReqMessageType;                
@@ -238,8 +254,10 @@ void send_req(JoinMessage *msg)
     ReqMessage *req = malloc(sizeof(ReqMessage));
     req->request_id = REQUEST_ID++;
     req->curr_view_id = VIEW_ID;
-    req->op_type = OpAdd;
-    req->peer_id = msg->process_id;
+    // req->op_type = OpAdd;
+    // req->peer_id = msg->process_id;
+    req->op_type = op_type;
+    req->peer_id = peer_id;
 
     logger(0, LOG_LEVEL, PROCESS_ID, "Sending Req\n");
     logger(0, LOG_LEVEL, PROCESS_ID, "\trequest id: %d\n", req->request_id);
@@ -645,7 +663,7 @@ int main(int argc, char *argv[])
         IS_LEADER = True;
         // MEMBERSHIP_LIST = malloc(NUM_HOSTS * sizeof(int));
         // memset(MEMBERSHIP_LIST, 0, sizeof(*MEMBERSHIP_LIST));
-        add_to_membership_list(PROCESS_ID);
+        edit_membership_list(PROCESS_ID, OpAdd);
     }
     // else   
         // send a message to the leader asking to join
@@ -680,12 +698,17 @@ int main(int argc, char *argv[])
             logger(1, LOG_LEVEL, PROCESS_ID, "Failed on select failure det\n");
             exit(1);
         }
-        if (FD_ISSET(FAILURE_DETECTOR_SOCKET, &failure_tmp))
+        //if (FD_ISSET(FAILURE_DETECTOR_SOCKET, &failure_tmp))
+        while (FD_ISSET(FAILURE_DETECTOR_SOCKET, &failure_tmp))
         {
             logger(0, LOG_LEVEL, PROCESS_ID, "Received HeartBeat\n");
             get_heartbeat(FAILURE_DETECTOR_SOCKET);
+            // select again because heartbeats get stacked up
+            failure_tmp = failure_master;
+            select_timeout.tv_sec = 0;
+            select_timeout.tv_usec = 500000;
+            select(FAILURE_DETECTOR_SOCKET+1, &failure_tmp, NULL, NULL, &select_timeout);
         }
-
 
         // check which process have died
         for (j = 0; j < NUM_HOSTS; j++)
@@ -700,18 +723,28 @@ int main(int argc, char *argv[])
 
             gettimeofday(&cur_time, NULL);
 
+            // XXX if you are the leader and peer not reachable then you need to send
+            // del req
             // timeout is 2.5 for heart beats so if we've waited more than 2x that
-            if ((cur_time.tv_sec - RECEIVED_HEARTBEATS[j]->recvd_time->tv_sec) >= 5)
+            if ((cur_time.tv_sec - RECEIVED_HEARTBEATS[j]->recvd_time->tv_sec) >= 4)
             {
                 printf("Peer %d not reachable\n", j+1);
                 fflush(stdout);
                 RECEIVED_HEARTBEATS[j]->recvd_time = NULL;
+
+                if (IS_LEADER)
+                // TODO you also need to remove that peer from your own membership
+                // list or else the networking will fail
+                {
+                    edit_membership_list(j+1, OpDel);
+                    send_req(j+1, OpDel);
+                }
             }
         }
 
         // send heartbeat
         gettimeofday(&cur_time, NULL);
-        if (cur_time.tv_sec - LAST_HEARTBEAT_SENT > 1)
+        if (cur_time.tv_sec - LAST_HEARTBEAT_SENT > 2)
         {
             send_heartbeat(PROCESS_ID);
             LAST_HEARTBEAT_SENT = cur_time.tv_sec;
@@ -780,7 +813,8 @@ int main(int argc, char *argv[])
                                 unpack_join_message(join, join_buf);
 
                                 // send req to everyone else
-                                send_req(join);
+                                // send_req(join);
+                                send_req(join->process_id, OpAdd);
                 
                                 // free everything
                                 free(join);
@@ -813,7 +847,10 @@ int main(int argc, char *argv[])
                                 free(req);
                                 free(req_buf);
                                 break;
+                            // TODO Oks need to be checked based on request/view id
+                            // different ops need to trigger different sends
                             // if ok
+                            // only the leader should be receiving oks
                             case OkMessageType:
                                 logger(0, LOG_LEVEL, PROCESS_ID, "Received Ok Message\n");
                                 OkMessage *ok = malloc(sizeof(OkMessage));
@@ -844,21 +881,30 @@ int main(int argc, char *argv[])
                                     }
                                 }
 
+                                // FIXME this needs to handle both adding and removing from
+                                // membership list based on the op type
                                 // if received all oks
                                 if (STORED_OPS[j]->num_oks == MEMBERSHIP_SIZE)
                                 {
-                                    // add peer to your membership list
-                                    add_to_membership_list(STORED_OPS[j]->peer_id);
+                                    if (STORED_OPS[j]->op_type == OpAdd)
+                                    {
+                                        // add peer to your membership list
+                                        edit_membership_list(STORED_OPS[j]->peer_id, OpAdd);
+                                    }
+                                    else if (STORED_OPS[j]->op_type == OpDel)
+                                    {
+                                        edit_membership_list(STORED_OPS[j]->peer_id, OpDel);
+                                    }
+
                                     //increment view id
                                     VIEW_ID++;
-
                                     // send new view
                                     send_new_view();
                                 }
-                                else
-                                {
-                                    logger(0, LOG_LEVEL, PROCESS_ID, "Have %d oks\n", STORED_OPS[j]->num_oks);
-                                }
+                                // else
+                                // {
+                                //     logger(0, LOG_LEVEL, PROCESS_ID, "Have %d oks\n", STORED_OPS[j]->num_oks);
+                                // }
 
                                 free(ok);
                                 free(ok_buf);
@@ -885,9 +931,21 @@ int main(int argc, char *argv[])
                                 VIEW_ID = view->view_id;
                                 logger(0, LOG_LEVEL, PROCESS_ID, "Updated View id\n");
                                 // update membership list
+                                // FIXME this needs to handle both adding and removing from 
+                                // membership list
+                                // XXX probably easiest just to clear out the membership list
+                                // and then re initialize based on the new view
+
+                                // clear membership list
+                                for (j = 0; j < NUM_HOSTS; j++)
+                                {
+                                    MEMBERSHIP_LIST[j] = 0;
+                                }
+                                MEMBERSHIP_SIZE = 0;
+                                // readd everything to membership list  
                                 for (j = 0; j < view->membership_size; j++)
                                 {
-                                    add_to_membership_list(view->membership_list[j]);
+                                    edit_membership_list(view->membership_list[j], OpAdd);
                                 }
                                 logger(0, LOG_LEVEL, PROCESS_ID, "Updated Membership list\n");
                                 // print view id and membership list

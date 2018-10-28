@@ -121,7 +121,7 @@ void pack_view_message(NewViewMessage *view, unsigned char *buf)
         if (view->membership_list[index] != 0)
         {
             packi32(buf, view->membership_list[index]);
-            printf("Verify org: %08x packed %08x\n", view->membership_list[index], unpacki32(buf));
+            // printf("Verify org: %08x packed %08x\n", view->membership_list[index], unpacki32(buf));
             buf += 4;
             stored++;
         }
@@ -135,10 +135,10 @@ void unpack_view_message(NewViewMessage *view, unsigned char *buf)
 {
     view->view_id = unpacki32(buf);
     buf += 4;
-    printf("\tNew View ID: %08x\n", view->view_id);
+    // printf("\tNew View ID: %08x\n", view->view_id);
     view->membership_size = unpacki32(buf);
     buf += 4;
-    printf("\tMembership list size: %08x\n", view->membership_size);
+    // printf("\tMembership list size: %08x\n", view->membership_size);
     view->membership_list = malloc(view->membership_size * sizeof(int));
 
     int index = 0;

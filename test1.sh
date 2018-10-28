@@ -8,6 +8,7 @@ sudo docker run \
     --hostname foo.bar.1 \
     --add-host foo.bar.2:192.168.69.6 \
     --add-host foo.bar.3:192.168.69.7 \
+    --name cont1 \
     --rm \
     dist_docker \
     ./test -p 55555 -h hosts_local &
@@ -21,6 +22,7 @@ sudo docker run \
     --hostname foo.bar.2 \
     --add-host foo.bar.1:192.168.69.5 \
     --add-host foo.bar.3:192.168.69.7 \
+    --name cont2 \
     --rm \
     dist_docker \
     ./test -p 55555 -h hosts_local &
@@ -35,9 +37,9 @@ sudo docker run \
     --add-host foo.bar.1:192.168.69.5 \
     --add-host foo.bar.2:192.168.69.6 \
     --rm \
+    --name cont3 \
     dist_docker \
     ./test -p 55555 -h hosts_local &
-
 
 sleep 15
 

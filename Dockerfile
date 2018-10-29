@@ -2,8 +2,15 @@
 FROM ubuntu:16.04
 # FROM centos:7.4.1708
 
+#ENV https_proxy=<proxy>
+#ENV http_proxy= <proxy>
+
 # Set the current working directory
 WORKDIR /home
+
+# Expose out default ports for testing
+EXPOSE 55555
+EXPOSE 44444
 
 # Update the system, download any packages essential for the project
 RUN apt-get update && apt-get upgrade -y

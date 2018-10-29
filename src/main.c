@@ -916,6 +916,7 @@ int main(int argc, char *argv[])
             if ((cur_time.tv_sec - RECEIVED_HEARTBEATS[j]->recvd_time->tv_sec) >= 4)
             {
                 printf("Peer %d not reachable\n", j+1);
+                logger(1, LOG_LEVEL, PROCESS_ID, "Peer %d not reachable\n", j+1);
                 fflush(stdout);
                 RECEIVED_HEARTBEATS[j]->recvd_time = NULL;
 
@@ -1187,12 +1188,15 @@ int main(int argc, char *argv[])
                                 logger(0, LOG_LEVEL, PROCESS_ID, "Updated Membership list\n");
                                 // print view id and membership list
                                 printf("View: %d\n", VIEW_ID);
+                                logger(1, LOG_LEVEL, PROCESS_ID, "View: %d\n", VIEW_ID);
                                 printf("Members\n");
+                                logger(1, LOG_LEVEL, PROCESS_ID, "Members\n");
                                 for (j = 0; j < NUM_HOSTS; j++)
                                 {
                                     if (MEMBERSHIP_LIST[j] != 0)
                                     {
                                         printf("\t%d\n", MEMBERSHIP_LIST[j]);
+                                        logger(1, LOG_LEVEL, PROCESS_ID, "\t%d\n", MEMBERSHIP_LIST[j]);
                                     }
                                 }
 

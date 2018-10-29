@@ -40,6 +40,12 @@ ReceivedHeartBeat **RECEIVED_HEARTBEATS;
 time_t LAST_HEARTBEAT_SENT;
 int LEADER_ID = 1;              // default is that first peer in host list is leader
 
+// for testing purposes we can turn off different functionality by assigning these values
+// using the -t switch. The default is for them to all be true, ie everything turned on.
+Boolean TEST2 = True;
+Boolean TEST3 = True;
+Boolean TEST4 = True;
+
 void *get_in_addr(struct sockaddr *sa)
 {
     if (sa->sa_family == AF_INET)
@@ -735,6 +741,33 @@ int main(int argc, char *argv[])
     {
         HOSTS = open_parse_hostfile(argv[4]);
     }
+
+    if (argc == 6)
+    {
+        if (strcmp(argv[5], "-t"))
+        {
+            switch (atoi(argv[6]))
+            {
+                case 1:
+                    TEST2 = False;
+                    TEST3 = False;
+                    TEST4 = False;
+                    break;
+                case 2:
+                    TEST3 = False;
+                    TEST4 = False;
+                    break;
+                case 3:
+                    TEST4 = False;
+                    break;
+                case 4:
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+
     logger(0, LOG_LEVEL, PROCESS_ID, "Command line parsed\n");
 
     // STORED_OPS = malloc(MAX_OPS * sizeof(StoredOperation *));
@@ -872,94 +905,104 @@ int main(int argc, char *argv[])
     for (;;)
     {
         read_fds = master;      // copy fd set
-        failure_tmp = failure_master;
-    
-        // setup timeout for select to 2.5 sec, some unixes change this everytime
-        //select_timeout.tv_sec = 2;
-        select_timeout.tv_sec = 0;
-        select_timeout.tv_usec = 500000;
-    
-        // select for failure detector and get the heartbeat if there is one
-        if (select(FAILURE_DETECTOR_SOCKET+1, &failure_tmp, NULL, NULL, &select_timeout) == -1)
+        
+        // Only do the failure detector stuff if you're test2 or higher
+        if (TEST2)
         {
-            logger(1, LOG_LEVEL, PROCESS_ID, "Failed on select failure det\n");
-            exit(1);
-        }
-        //if (FD_ISSET(FAILURE_DETECTOR_SOCKET, &failure_tmp))
-        while (FD_ISSET(FAILURE_DETECTOR_SOCKET, &failure_tmp))
-        {
-            logger(0, LOG_LEVEL, PROCESS_ID, "Received HeartBeat\n");
-            get_heartbeat(FAILURE_DETECTOR_SOCKET);
-            // select again because heartbeats get stacked up
             failure_tmp = failure_master;
             select_timeout.tv_sec = 0;
             select_timeout.tv_usec = 500000;
-            select(FAILURE_DETECTOR_SOCKET+1, &failure_tmp, NULL, NULL, &select_timeout);
-        }
-
-        // check which process have died
-        for (j = 0; j < NUM_HOSTS; j++)
-        {
-            //logger(0, LOG_LEVEL, PROCESS_ID, "Verifying for %d\n", j+1);
-            //if (RECEIVED_HEARTBEATS[j]->recvd_time == NULL)
-            //if (MEMBERSHIP_LIST[j] == 0 || (j+1) == PROCESS_ID)
-            if (MEMBERSHIP_LIST[j] == 0 || RECEIVED_HEARTBEATS[j]->recvd_time == NULL)
+        
+            // select for failure detector and get the heartbeat if there is one
+            if (select(FAILURE_DETECTOR_SOCKET+1, &failure_tmp, NULL, NULL, &select_timeout) == -1)
             {
-                continue;
+                logger(1, LOG_LEVEL, PROCESS_ID, "Failed on select failure det\n");
+                exit(1);
+            }
+            //if (FD_ISSET(FAILURE_DETECTOR_SOCKET, &failure_tmp))
+            while (FD_ISSET(FAILURE_DETECTOR_SOCKET, &failure_tmp))
+            {
+                logger(0, LOG_LEVEL, PROCESS_ID, "Received HeartBeat\n");
+                get_heartbeat(FAILURE_DETECTOR_SOCKET);
+                // select again because heartbeats get stacked up
+                failure_tmp = failure_master;
+                select_timeout.tv_sec = 0;
+                select_timeout.tv_usec = 500000;
+                select(FAILURE_DETECTOR_SOCKET+1, &failure_tmp, NULL, NULL, &select_timeout);
             }
 
-            gettimeofday(&cur_time, NULL);
-
-            // XXX if you are the leader and peer not reachable then you need to send
-            // del req
-            // timeout is 2.5 for heart beats so if we've waited more than 2x that
-            if ((cur_time.tv_sec - RECEIVED_HEARTBEATS[j]->recvd_time->tv_sec) >= 4)
+            // check which process have died
+            for (j = 0; j < NUM_HOSTS; j++)
             {
-                printf("Peer %d not reachable\n", j+1);
-                logger(1, LOG_LEVEL, PROCESS_ID, "Peer %d not reachable\n", j+1);
-                fflush(stdout);
-                RECEIVED_HEARTBEATS[j]->recvd_time = NULL;
-
-                if (IS_LEADER)
-                // TODO you also need to remove that peer from your own membership
-                // list or else the networking will fail
+                //logger(0, LOG_LEVEL, PROCESS_ID, "Verifying for %d\n", j+1);
+                //if (RECEIVED_HEARTBEATS[j]->recvd_time == NULL)
+                //if (MEMBERSHIP_LIST[j] == 0 || (j+1) == PROCESS_ID)
+                if (MEMBERSHIP_LIST[j] == 0 || RECEIVED_HEARTBEATS[j]->recvd_time == NULL)
                 {
-                    edit_membership_list(j+1, OpDel);
-                    send_req(j+1, OpDel);
+                    continue;
                 }
 
-                // if the leader has crashed
-                // go through membership list and leader is now lowest id that is member
-                if (j+1 == LEADER_ID)
+                gettimeofday(&cur_time, NULL);
+
+                // XXX if you are the leader and peer not reachable then you need to send
+                // del req
+                // timeout is 2.5 for heart beats so if we've waited more than 2x that
+                if ((cur_time.tv_sec - RECEIVED_HEARTBEATS[j]->recvd_time->tv_sec) >= 4)
                 {
-                    MEMBERSHIP_LIST[j] = 0;
-                    int k;
-                    for (k = 0; k < NUM_HOSTS; k++)
+                    printf("Peer %d not reachable\n", j+1);
+                    logger(1, LOG_LEVEL, PROCESS_ID, "Peer %d not reachable\n", j+1);
+                    fflush(stdout);
+                    RECEIVED_HEARTBEATS[j]->recvd_time = NULL;
+
+                    // if test3 or higher then change membership list
+                    if (TEST3)
                     {
-                        if (MEMBERSHIP_LIST[k] != 0)
+                        if (IS_LEADER)
+                        // TODO you also need to remove that peer from your own membership
+                        // list or else the networking will fail
                         {
-                            LEADER_ID = k;
-                            // if you are new leader
-                            if (LEADER_ID == PROCESS_ID)
+                            edit_membership_list(j+1, OpDel);
+                            send_req(j+1, OpDel);
+                        }
+
+                        // only select a new leader if test4
+                        if (TEST4)
+                        {
+                            // if the leader has crashed
+                            // go through membership list and leader is now lowest id that is member
+                            if (j+1 == LEADER_ID)
                             {
-                                IS_LEADER = True;
-                                send_new_leader_msg();
+                                MEMBERSHIP_LIST[j] = 0;
+                                int k;
+                                for (k = 0; k < NUM_HOSTS; k++)
+                                {
+                                    if (MEMBERSHIP_LIST[k] != 0)
+                                    {
+                                        LEADER_ID = k;
+                                        // if you are new leader
+                                        if (LEADER_ID == PROCESS_ID)
+                                        {
+                                            IS_LEADER = True;
+                                            send_new_leader_msg();
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
+
+            // send heartbeat
+            gettimeofday(&cur_time, NULL);
+            if (cur_time.tv_sec - LAST_HEARTBEAT_SENT > 2)
+            {
+                send_heartbeat(PROCESS_ID);
+                LAST_HEARTBEAT_SENT = cur_time.tv_sec;
+            }
         }
 
-        // send heartbeat
-        gettimeofday(&cur_time, NULL);
-        if (cur_time.tv_sec - LAST_HEARTBEAT_SENT > 2)
-        {
-            send_heartbeat(PROCESS_ID);
-            LAST_HEARTBEAT_SENT = cur_time.tv_sec;
-        }
-
-        select_timeout.tv_sec = 2;
+        select_timeout.tv_sec = 0;
         select_timeout.tv_usec = 500000;
 
         if (select(fdmax+1, &read_fds, NULL, NULL, &select_timeout) == -1)
@@ -1259,7 +1302,7 @@ int main(int argc, char *argv[])
                                 STORED_OP = 0;
                                 VIEW_ID++;
                                 send_new_view();
-                                
+
                                 free(pending);
                                 free(pending_buf);
 

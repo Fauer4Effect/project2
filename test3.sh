@@ -9,7 +9,7 @@ sudo docker run \
     --name cont1 \
     -a stdout -a stderr -a stdin \
     dist_docker \
-    ./test -p 55555 -h hosts_local -t 2 &
+    ./test -p 55555 -h hosts_local -t 3 &
 
 sleep 5
 
@@ -23,7 +23,7 @@ sudo docker run \
     --name cont2 \
     -a stdout -a stderr -a stdin \
     dist_docker \
-    ./test -p 55555 -h hosts_local -t 2 &
+    ./test -p 55555 -h hosts_local -t 3 &
 
 sleep 7
 
@@ -37,7 +37,7 @@ sudo docker run \
     --name cont3 \
     -a stdout -a stderr -a stdin \
     dist_docker \
-    ./test -p 55555 -h hosts_local -t 2 &
+    ./test -p 55555 -h hosts_local -t 3 &
 
 sleep 10
 
@@ -51,7 +51,7 @@ sudo docker run \
     --name cont4 \
     -a stdout -a stderr -a stdin \
     dist_docker \
-    ./test -p 55555 -h hosts_local -t 2 &
+    ./test -p 55555 -h hosts_local -t 3 &
 
 sleep 10
 

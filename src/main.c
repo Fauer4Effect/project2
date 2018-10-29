@@ -743,8 +743,10 @@ int main(int argc, char *argv[])
         HOSTS = open_parse_hostfile(argv[4]);
     }
 
+    logger(0, LOG_LEVEL, PROCESS_ID, "Argc %d\n", argc);
     if (argc == 7)
     {
+        logger(0, LOG_LEVEL, PROCESS_ID, "argc %s\n", argv[5]);
         if (strcmp(argv[5], "-t") == 0)
         {
             int test_level = atoi(argv[6]);

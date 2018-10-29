@@ -7,7 +7,7 @@ sudo docker run \
     --add-host foo.bar.3:192.168.69.7 \
     -a stdout -a stderr -a stdin \
     dist_docker \
-    ./test -p 55555 -h hosts_local &
+    ./test -p 55555 -h hosts_local -t 1 &
 
 sleep 5
 
@@ -19,9 +19,9 @@ sudo docker run \
     --add-host foo.bar.3:192.168.69.7 \
     -a stdout -a stderr -a stdin \
     dist_docker \
-    ./test -p 55555 -h hosts_local &
+    ./test -p 55555 -h hosts_local -t 1 &
 
 
-sleep 15
+sleep 10
 
-sudo docker container kill $(sudo docker ps | cut -d " " -f 1)
+sudo docker container kill $(sudo docker ps -q | cut -d " " -f 1)

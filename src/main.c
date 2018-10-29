@@ -725,6 +725,7 @@ int main(int argc, char *argv[])
     if (argc < 5)
     {
         logger(1, LOG_LEVEL, PROCESS_ID, "USAGE:\n prj2 -p port -h hostfile\n");
+        exit(1);
     }
 
     logger(0, LOG_LEVEL, PROCESS_ID, "Parsing command line\n");
@@ -742,11 +743,13 @@ int main(int argc, char *argv[])
         HOSTS = open_parse_hostfile(argv[4]);
     }
 
-    if (argc == 6)
+    if (argc == 7)
     {
-        if (strcmp(argv[5], "-t"))
+        if (strcmp(argv[5], "-t") == 0)
         {
-            switch (atoi(argv[6]))
+            int test_level = atoi(argv[6]);
+            logger(0, LOG_LEVEL, PROCESS_ID, "Testing level %d\n", test_level);
+            switch (test_level)
             {
                 case 1:
                     TEST2 = False;

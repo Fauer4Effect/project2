@@ -1247,6 +1247,9 @@ int main(int argc, char *argv[])
                                     MEMBERSHIP_LIST[j] = 0;
                                 }
                                 MEMBERSHIP_SIZE = 0;
+                                // new leader is the lowest id in the membership list
+                                // so if leader crashed and pending op done that new guy knows
+                                LEADER_ID = view->membership_list[0];
                                 // readd everything to membership list  
                                 for (j = 0; j < view->membership_size; j++)
                                 {

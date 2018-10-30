@@ -975,17 +975,21 @@ int main(int argc, char *argv[])
                             // go through membership list and leader is now lowest id that is member
                             if (j+1 == LEADER_ID)
                             {
+                                logger(0, LOG_LEVEL, PROCESS_ID, "Detected leader crashed\n");
                                 MEMBERSHIP_LIST[j] = 0;
                                 int k;
                                 for (k = 0; k < NUM_HOSTS; k++)
                                 {
                                     if (MEMBERSHIP_LIST[k] != 0)
                                     {
+                                        logger(0, LOG_LEVEL, PROCESS_ID, "New leader is %d\n", k);
                                         LEADER_ID = k;
                                         // if you are new leader
                                         if (LEADER_ID == PROCESS_ID)
                                         {
                                             IS_LEADER = True;
+                                            logger(0, LOG_LEVEL, PROCESS_ID, 
+                                                    "Sending new leader message\n");
                                             send_new_leader_msg();
                                         }
                                     }
@@ -1094,10 +1098,19 @@ int main(int argc, char *argv[])
                                 logger(0, LOG_LEVEL, PROCESS_ID, "\top type: %08x\n", req->op_type);
                                 logger(0, LOG_LEVEL, PROCESS_ID, "\tpeer id: %08x\n", req->peer_id);
 
-                                // save operation
-                                store_operation(req);
-                                // send ok
-                                send_ok(req);
+                                // for test4, new leader will ignore a join to test restarting
+                                // a pending op
+                                if (TEST4 && (PROCESS_ID == 2) && (req->request_id == 3))
+                                {
+                                    ;   // Do nothing
+                                }
+                                else        // Normal behavior
+                                {
+                                    // save operation
+                                    store_operation(req);
+                                    // send ok
+                                    send_ok(req);
+                                }
 
                                 free(req);
                                 free(req_buf);
@@ -1274,6 +1287,7 @@ int main(int argc, char *argv[])
                                 unpack_new_leader(leader, leader_buf);
                                 logger(0, LOG_LEVEL, PROCESS_ID, "New Leader unpacked\n");
 
+                                logger(0, LOG_LEVEL, PROCESS_ID, "Sending pending op\n");
                                 send_pending_op();
                                 break;
 

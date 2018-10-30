@@ -405,7 +405,7 @@ void send_ok(ReqMessage *req)
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
 
-    if ((rv = getaddrinfo(HOSTS[0], PORT, &hints, &servinfo)) != 0)
+    if ((rv = getaddrinfo(HOSTS[LEADER_ID-1], PORT, &hints, &servinfo)) != 0)
     {
         logger(1, LOG_LEVEL, PROCESS_ID, "getaddrinfo %s\n", gai_strerror(rv));
         exit(1);
@@ -472,6 +472,11 @@ void send_pending_op()
         pending->op_type = OpNothing;
         pending->peer_id = 0;
     }
+    logger(0, LOG_LEVEL, PROCESS_ID, "Pending op\n");
+    logger(0, LOG_LEVEL, PROCESS_ID, "\trequest id: %08x\n", pending->request_id);
+    logger(0, LOG_LEVEL, PROCESS_ID, "\tview id: %08x\n", pending->curr_view_id);
+    logger(0, LOG_LEVEL, PROCESS_ID, "\top type: %08x\n", pending->op_type);
+    logger(0, LOG_LEVEL, PROCESS_ID, "\tpeer id: %08x\n", pending->peer_id);
 
     unsigned char *header_buf = malloc(sizeof(Header));
     unsigned char *pending_buf = malloc(sizeof(PendingOp));
@@ -525,10 +530,10 @@ void send_pending_op()
     {
         logger(1, LOG_LEVEL, PROCESS_ID, "Could not send ok to leader\n");
     }
-    send(sockfd, pending_buf, sizeof(OkMessage), 0);
+    send(sockfd, pending_buf, sizeof(PendingOp), 0);
     close(sockfd);
 
-    logger(0, LOG_LEVEL, PROCESS_ID, "Ok Sent\n");
+    logger(0, LOG_LEVEL, PROCESS_ID, "Pending op Sent\n");
 
     // don't need the data anymore
     // free(buf);
@@ -977,6 +982,7 @@ int main(int argc, char *argv[])
                             {
                                 logger(0, LOG_LEVEL, PROCESS_ID, "Detected leader crashed\n");
                                 MEMBERSHIP_LIST[j] = 0;
+                                MEMBERSHIP_SIZE--;
                                 int k;
                                 for (k = 0; k < NUM_HOSTS; k++)
                                 {
@@ -1184,6 +1190,7 @@ int main(int argc, char *argv[])
                                 //     send_new_view();
                                 // }
 
+                                logger(0, LOG_LEVEL, PROCESS_ID, "Have %d ok need %d\n", STORED_OP->num_oks, MEMBERSHIP_SIZE);
                                 if (STORED_OP->num_oks == MEMBERSHIP_SIZE)
                                 {
                                     if (STORED_OP->op_type == OpAdd)
@@ -1262,7 +1269,8 @@ int main(int argc, char *argv[])
 
                                 // nothing pending anymore
                                 free(STORED_OP);
-                                STORED_OP = 0;
+                                // STORED_OP = 0;
+                                memset(&STORED_OP, 0, sizeof(STORED_OP));
 
                                 // trigger them to resend heartbeats when someone new joins
                                 // sometimes they still think someone has failed who is still

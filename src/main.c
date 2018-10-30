@@ -1295,16 +1295,19 @@ int main(int argc, char *argv[])
                                 }
                                 else if (pending->op_type == OpAdd)
                                 {
-                                    edit_membership_list(pending->peer_id, OpAdd);
+                                    // should just resned the request, restarting the 2pc protocol
+                                    // edit_membership_list(pending->peer_id, OpAdd);
+                                    send_req(pending->peer_id, OpAdd);
                                 }
                                 else if (pending->op_type == OpDel)
                                 {
-                                    edit_membership_list(pending->peer_id, OpDel);
+                                    // edit_membership_list(pending->peer_id, OpDel);
+                                    send_req(pending->peer_id, OpDel);
                                 }
 
-                                STORED_OP = 0;
-                                VIEW_ID++;
-                                send_new_view();
+                                // STORED_OP = 0;
+                                // VIEW_ID++;
+                                // send_new_view();
 
                                 free(pending);
                                 free(pending_buf);

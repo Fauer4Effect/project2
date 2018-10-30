@@ -45,6 +45,7 @@ int LEADER_ID = 1;              // default is that first peer in host list is le
 Boolean TEST2 = True;
 Boolean TEST3 = True;
 Boolean TEST4 = True;
+Boolean DROP = False;       // tells process 2 to drop the request for testing
 
 void *get_in_addr(struct sockaddr *sa)
 {
@@ -706,6 +707,7 @@ int main(int argc, char *argv[])
                     TEST4 = False;
                     break;
                 case 4:
+                    DROP = True;
                     break;
                 default:
                     break;
@@ -908,6 +910,7 @@ int main(int argc, char *argv[])
                                 logger(0, LOG_LEVEL, PROCESS_ID, "Detected leader crashed\n");
                                 MEMBERSHIP_LIST[j] = 0;
                                 MEMBERSHIP_SIZE--;
+                                VIEW_ID++;
                                 int k;
                                 for (k = 0; k < NUM_HOSTS; k++)
                                 {
@@ -1032,7 +1035,7 @@ int main(int argc, char *argv[])
 
                                 // for test4, new leader will ignore a join to test restarting
                                 // a pending op
-                                if (TEST4 && (PROCESS_ID == 2) && (req->request_id == 3))
+                                if (DROP && (PROCESS_ID == 2) && (req->request_id == 3))
                                 {
                                     logger(0, LOG_LEVEL, PROCESS_ID, "Ignoring req for test\n");   // Do nothing
                                 }

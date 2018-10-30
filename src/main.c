@@ -1103,7 +1103,7 @@ int main(int argc, char *argv[])
                                 // a pending op
                                 if (TEST4 && (PROCESS_ID == 2) && (req->request_id == 3))
                                 {
-                                    ;   // Do nothing
+                                    logger(0, LOG_LEVEL, PROCESS_ID, "Ignoring req for test\n");   // Do nothing
                                 }
                                 else        // Normal behavior
                                 {
@@ -1306,17 +1306,19 @@ int main(int argc, char *argv[])
 
                                 if (pending->op_type == OpNothing)
                                 {
-                                    break;
+                                    ;       // do nothing
                                 }
                                 else if (pending->op_type == OpAdd)
                                 {
                                     // should just resned the request, restarting the 2pc protocol
                                     // edit_membership_list(pending->peer_id, OpAdd);
+                                    logger(0, LOG_LEVEL, PROCESS_ID, "Sending pending op request\n");
                                     send_req(pending->peer_id, OpAdd);
                                 }
                                 else if (pending->op_type == OpDel)
                                 {
                                     // edit_membership_list(pending->peer_id, OpDel);
+                                    logger(0, LOG_LEVEL, PROCESS_ID, "Sending pending op request\n");
                                     send_req(pending->peer_id, OpDel);
                                 }
 

@@ -1,5 +1,5 @@
-sudo docker build -t dist_docker .
-sudo docker network create --subnet "192.168.69.0\24" mynet
+# sudo docker build -t dist_docker .
+# sudo docker network create --subnet "192.168.69.0\24" mynet
 
 sudo docker run \
     --net mynet \
@@ -11,7 +11,7 @@ sudo docker run \
     --name cont1 \
     -a stdout -a stderr -a stdin \
     dist_docker \
-    ./test -p 55555 -h hosts_local -t 3 &
+    ./prj2 -p 55555 -h hosts_local -t 3 &
 
 sleep 5
 
@@ -25,7 +25,7 @@ sudo docker run \
     --name cont2 \
     -a stdout -a stderr -a stdin \
     dist_docker \
-    ./test -p 55555 -h hosts_local -t 3 &
+    ./prj2 -p 55555 -h hosts_local -t 3 &
 
 sleep 7
 
@@ -39,7 +39,7 @@ sudo docker run \
     --name cont3 \
     -a stdout -a stderr -a stdin \
     dist_docker \
-    ./test -p 55555 -h hosts_local -t 3 &
+    ./prj2 -p 55555 -h hosts_local -t 3 &
 
 sleep 10
 
@@ -53,7 +53,7 @@ sudo docker run \
     --name cont4 \
     -a stdout -a stderr -a stdin \
     dist_docker \
-    ./test -p 55555 -h hosts_local -t 3 &
+    ./prj2 -p 55555 -h hosts_local -t 3 &
 
 sleep 10
 
@@ -71,3 +71,4 @@ sleep 10
 
 sudo docker container kill $(sudo docker ps -q | cut -d " " -f 1)
 sudo docker container prune -f
+

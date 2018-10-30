@@ -1,7 +1,7 @@
-all: test
+all: prj2
 
-test: src/main.c src/serialize.c src/logging.c src/failure.c
-	gcc -Wall -g -o test src/main.c src/serialize.c src/logging.c src/failure.c
+prj2: src/main.c src/serialize.c src/logging.c src/failure.c
+	gcc -Wall -g -o prj2 src/main.c src/serialize.c src/logging.c src/failure.c
 
 clean:
-	$(RM) test
+	$(RM) prj2

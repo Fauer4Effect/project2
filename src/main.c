@@ -982,8 +982,8 @@ int main(int argc, char *argv[])
                                 {
                                     if (MEMBERSHIP_LIST[k] != 0)
                                     {
-                                        logger(0, LOG_LEVEL, PROCESS_ID, "New leader is %d\n", k);
-                                        LEADER_ID = k;
+                                        logger(0, LOG_LEVEL, PROCESS_ID, "New leader is %d\n", k+1);
+                                        LEADER_ID = k+1;
                                         // if you are new leader
                                         if (LEADER_ID == PROCESS_ID)
                                         {

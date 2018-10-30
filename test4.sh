@@ -1,3 +1,5 @@
+sudo docker build -t dist_docker .
+sudo docker network create --subnet "192.168.69.0\24" mynet
 
 sudo docker run \
     --net mynet \

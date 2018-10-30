@@ -57,8 +57,11 @@ sleep 10
 
 sudo docker container kill cont1
 
-sleep 20
+sleep 15
 
+sudo docker container kill cont2
+
+sleep 15
 
 sudo docker container kill $(sudo docker ps -q | cut -d " " -f 1)
 sudo docker container prune -f

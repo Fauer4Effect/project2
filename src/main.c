@@ -992,6 +992,7 @@ int main(int argc, char *argv[])
                                                     "Sending new leader message\n");
                                             send_new_leader_msg();
                                         }
+                                        break;
                                     }
                                 }
                             }

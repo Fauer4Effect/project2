@@ -1303,6 +1303,11 @@ int main(int argc, char *argv[])
                                 }
                                 unpack_pending_op(pending, pending_buf);
                                 logger(0, LOG_LEVEL, PROCESS_ID, "Pending Op unpacked\n");
+                                logger(0, LOG_LEVEL, PROCESS_ID, "Pending Op\n");
+                                logger(0, LOG_LEVEL, PROCESS_ID, "\trequest id: %08x\n", pending->request_id);
+                                logger(0, LOG_LEVEL, PROCESS_ID, "\tview id: %08x\n", pending->curr_view_id);
+                                logger(0, LOG_LEVEL, PROCESS_ID, "\top type: %08x\n", pending->op_type);
+                                logger(0, LOG_LEVEL, PROCESS_ID, "\tpeer id: %08x\n", pending->peer_id);
 
                                 if (pending->op_type == OpNothing)
                                 {

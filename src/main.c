@@ -132,7 +132,6 @@ void edit_membership_list(int process_id, uint32_t op_type)
             MEMBERSHIP_LIST[process_id-1] = process_id;
             logger(0, LOG_LEVEL, PROCESS_ID, "Stored process %d in membership list\n", process_id);
             MEMBERSHIP_SIZE++;
-            // logger(0, LOG_LEVEL, PROCESS_ID, "Membership list is of size %d\n", MEMBERSHIP_SIZE);
             return;
         }
     }
@@ -143,7 +142,6 @@ void edit_membership_list(int process_id, uint32_t op_type)
             MEMBERSHIP_LIST[process_id-1] = 0;
             logger(0, LOG_LEVEL, PROCESS_ID, "Removed process %d from membership\n", process_id);
             MEMBERSHIP_SIZE--;
-            // logger(0, LOG_LEVEL, PROCESS_ID, "Membership list is of size %d\n", MEMBERSHIP_SIZE);
             return;
         }
     }
@@ -158,12 +156,9 @@ void request_to_join()
     JoinMessage *join = malloc(sizeof(JoinMessage));
     join->process_id = PROCESS_ID;
 
-    //unsigned char *buf = malloc(sizeof(Header) + sizeof(JoinMessage));
     unsigned char *header_buf = malloc(sizeof(Header));
     unsigned char *join_buf = malloc(sizeof(JoinMessage));
 
-    //pack_header(header, buf);
-    //pack_join_message(join, buf+sizeof(Header));             // +8 because need to offset for header
     pack_header(header, header_buf);
     pack_join_message(join, join_buf);
     logger(0, LOG_LEVEL, PROCESS_ID, "Message and header setup and packed\n");
@@ -208,7 +203,6 @@ void request_to_join()
     freeaddrinfo(servinfo);
     logger(0, LOG_LEVEL, PROCESS_ID, "Connected to leader\n");
 
-    //if (send(sockfd, buf, sizeof(buf), 0) == -1)
     if (send(sockfd, header_buf, sizeof(Header), 0) == -1)
     {
         logger(1, LOG_LEVEL, PROCESS_ID, "Could not send join request to leader\n");
@@ -219,7 +213,6 @@ void request_to_join()
     logger(0, LOG_LEVEL, PROCESS_ID, "Join Request Sent\n");
 
     // don't need the data anymore
-    //free(buf);
     free(header_buf);
     free(join_buf);
 
@@ -228,28 +221,6 @@ void request_to_join()
 
 void store_operation(ReqMessage *req)
 {
-    // int i;
-    // for (i = 0; i < MAX_OPS; i++)
-    // {
-    //     if (STORED_OPS[i] == 0)
-    //     {
-    //         logger(0, LOG_LEVEL, PROCESS_ID, "Found spot for stored op\n");
-    //         STORED_OPS[i] = malloc(sizeof(StoredOperation));
-
-    //         STORED_OPS[i]->request_id = req->request_id;
-    //         STORED_OPS[i]->curr_view_id = req->curr_view_id;
-    //         STORED_OPS[i]->op_type = req->op_type;
-    //         STORED_OPS[i]->peer_id = req->peer_id;
-    //         STORED_OPS[i]->num_oks = 0;
-    //         //STORED_OPS[i]->num_oks = 1;             // if you are leader then this is helpful
-    //                                                 // for everyone else it's kind of dumb
-
-    //         logger(0, LOG_LEVEL, PROCESS_ID, "Stored op: %d with view: %d\n", 
-    //                 STORED_OPS[i]->request_id, STORED_OPS[i]->curr_view_id);
-    //         break;
-    //     }
-    // }
-    // return;
     STORED_OP = (StoredOperation *)malloc(sizeof(StoredOperation));
     STORED_OP->request_id = req->request_id;
     STORED_OP->curr_view_id = req->curr_view_id;
@@ -273,8 +244,6 @@ void send_req(uint32_t peer_id, uint32_t op_type)
     ReqMessage *req = malloc(sizeof(ReqMessage));
     req->request_id = REQUEST_ID++;
     req->curr_view_id = VIEW_ID;
-    // req->op_type = OpAdd;
-    // req->peer_id = msg->process_id;
     req->op_type = op_type;
     req->peer_id = peer_id;
 
@@ -284,12 +253,9 @@ void send_req(uint32_t peer_id, uint32_t op_type)
     logger(0, LOG_LEVEL, PROCESS_ID, "\top type: %d\n", req->op_type);
     logger(0, LOG_LEVEL, PROCESS_ID, "\tpeer id: %d\n", req->peer_id);
 
-    // unsigned char *buf = malloc(sizeof(Header) + sizeof(ReqMessage));
     unsigned char *header_buf = malloc(sizeof(Header));
     unsigned char *req_buf = malloc(sizeof(ReqMessage));
 
-    // pack_header(header, buf);
-    // pack_req_message(req, buf+8);             // +8 because need to offset for header
     pack_header(header, header_buf);
     pack_req_message(req, req_buf);
     logger(0, LOG_LEVEL, PROCESS_ID, "Message and header setup and packed\n");
@@ -301,8 +267,7 @@ void send_req(uint32_t peer_id, uint32_t op_type)
     int i;
     for (i = 0; i < NUM_HOSTS; i++)
     {
-        // only need to send to hosts that are members and don't need to send to self
-        // if (MEMBERSHIP_LIST[i] == 0 || (i+1) == PROCESS_ID)
+        // only need to send to hosts that are members
         if (MEMBERSHIP_LIST[i] == 0)
         {
             continue;
@@ -341,32 +306,24 @@ void send_req(uint32_t peer_id, uint32_t op_type)
         freeaddrinfo(servinfo);
         logger(0, LOG_LEVEL, PROCESS_ID, "Connected to peer %d\n", i+1);
 
-        // if (send(sockfd, buf, sizeof(buf), 0) == -1)
         if(send(sockfd, header_buf, sizeof(Header), 0) == -1)
         {
             logger(1, LOG_LEVEL, PROCESS_ID, "Could not send req to peer\n");
         }
         int sent;
-        //sent = send(sockfd, req_buf, sizeof(req_buf), 0);
         sent = send(sockfd, req_buf, sizeof(ReqMessage), 0);
         if (sent < sizeof(req_buf))
         {
             logger(0, LOG_LEVEL, PROCESS_ID, "Only sent %d instead of %d\n", sent, sizeof(req_buf));
         }
-        //logger(0, LOG_LEVEL, PROCESS_ID, "Sent %d bytes of req message\n", sent);
-        //logger(0, LOG_LEVEL, PROCESS_ID, "%d\n", unpacki32(req_buf+8));
         close(sockfd);
 
     }
     logger(0, LOG_LEVEL, PROCESS_ID, "Reqs Sent\n");
 
-    // we can go ahead and store it and we know we will ok it.
-    //store_operation(req);
-
     // since they've been packed we don't need the structs any more
     free(header);
     free(req);
-    // free(buf);
     free(header_buf);
     free(req_buf);
 
@@ -383,12 +340,9 @@ void send_ok(ReqMessage *req)
     ok->request_id = req->request_id;
     ok->curr_view_id = req->curr_view_id;
 
-    // unsigned char *buf = malloc(sizeof(Header) + sizeof(OkMessage));
     unsigned char *header_buf = malloc(sizeof(Header));
     unsigned char *ok_buf = malloc(sizeof(OkMessage));
 
-    // pack_header(header, buf);
-    // pack_ok_message(ok, buf+8);             // +8 because need to offset for header
     pack_header(header, header_buf);
     pack_ok_message(ok, ok_buf);
     logger(0, LOG_LEVEL, PROCESS_ID, "Message and header setup and packed\n");
@@ -433,7 +387,6 @@ void send_ok(ReqMessage *req)
     freeaddrinfo(servinfo);
     logger(0, LOG_LEVEL, PROCESS_ID, "Connected to leader\n");
 
-    // if (send(sockfd, buf, sizeof(buf), 0) == -1)
     if (send(sockfd, header_buf, sizeof(Header), 0) == -1)
     {
         logger(1, LOG_LEVEL, PROCESS_ID, "Could not send ok to leader\n");
@@ -444,7 +397,6 @@ void send_ok(ReqMessage *req)
     logger(0, LOG_LEVEL, PROCESS_ID, "Ok Sent\n");
 
     // don't need the data anymore
-    // free(buf);
     free(header_buf);
     free(ok_buf);
 
@@ -525,7 +477,6 @@ void send_pending_op()
     freeaddrinfo(servinfo);
     logger(0, LOG_LEVEL, PROCESS_ID, "Connected to leader\n");
 
-    // if (send(sockfd, buf, sizeof(buf), 0) == -1)
     if (send(sockfd, header_buf, sizeof(Header), 0) == -1)
     {
         logger(1, LOG_LEVEL, PROCESS_ID, "Could not send ok to leader\n");
@@ -536,7 +487,6 @@ void send_pending_op()
     logger(0, LOG_LEVEL, PROCESS_ID, "Pending op Sent\n");
 
     // don't need the data anymore
-    // free(buf);
     free(header_buf);
     free(pending_buf);
 
@@ -557,16 +507,11 @@ void send_new_view()
     view->membership_size = MEMBERSHIP_SIZE;
     view->membership_list = MEMBERSHIP_LIST;
 
-    // room for header + view_id + membership_size + all_members
-    // unsigned char *buf = malloc(sizeof(Header) + (2 * sizeof(uint32_t)) + 
-                        // (view->membership_size * sizeof(int)));
     unsigned char *header_buf = malloc(sizeof(Header));
     unsigned char *new_view_buf = malloc(header->size);
 
-    // pack_header(header, buf);
     pack_header(header, header_buf);
     logger(0, LOG_LEVEL, PROCESS_ID, "Packing new view\n");
-    // pack_view_message(view, buf+8);             // +8 because need to offset for header
     pack_view_message(view, new_view_buf);
     logger(0, LOG_LEVEL, PROCESS_ID, "Finished packing new view\n");
     logger(0, LOG_LEVEL, PROCESS_ID, "Message and header setup and packed\n");
@@ -578,8 +523,7 @@ void send_new_view()
     int i;
     for (i = 0; i < NUM_HOSTS; i++)
     {
-        // only need to send to hosts that are members and don't need to send to self
-        //if (MEMBERSHIP_LIST[i] == 0 || (i+1) == PROCESS_ID)
+        // only need to send to hosts that are members
         if (MEMBERSHIP_LIST[i] == 0)
         {
             continue;
@@ -617,7 +561,6 @@ void send_new_view()
         freeaddrinfo(servinfo);
         logger(0, LOG_LEVEL, PROCESS_ID, "Connected to peer\n");
 
-        // if (send(sockfd, buf, sizeof(buf), 0) == -1)
         if (send(sockfd, header_buf, sizeof(Header), 0) == -1)
         {
             logger(1, LOG_LEVEL, PROCESS_ID, "Could not send new_view to peer\n");
@@ -633,7 +576,6 @@ void send_new_view()
     // since they've been packed we don't need the structs any more
     free(header);
     free(view);
-    // free(buf);
     free(header_buf);
     free(new_view_buf);
 
@@ -643,8 +585,7 @@ void send_new_view()
 void send_new_leader_msg()
 {
     Header *header = malloc(sizeof(Header));
-    header->msg_type = NewLeaderMessageType;  
-    // view_id + membership_size + all_members              
+    header->msg_type = NewLeaderMessageType;              
     header->size = sizeof(NewLeaderMessage);
 
     NewLeaderMessage *leader = malloc(sizeof(NewLeaderMessage));
@@ -655,7 +596,6 @@ void send_new_leader_msg()
     unsigned char *header_buf = malloc(sizeof(Header));
     unsigned char *new_leader_buf = malloc(header->size);
 
-    // pack_header(header, buf);
     pack_header(header, header_buf);
     pack_new_leader(leader, new_leader_buf);
 
@@ -666,8 +606,7 @@ void send_new_leader_msg()
     int i;
     for (i = 0; i < NUM_HOSTS; i++)
     {
-        // only need to send to hosts that are members and don't need to send to self
-        //if (MEMBERSHIP_LIST[i] == 0 || (i+1) == PROCESS_ID)
+        // only need to send to hosts that are members
         if (MEMBERSHIP_LIST[i] == 0)
         {
             continue;
@@ -705,7 +644,6 @@ void send_new_leader_msg()
         freeaddrinfo(servinfo);
         logger(0, LOG_LEVEL, PROCESS_ID, "Connected to peer\n");
 
-        // if (send(sockfd, buf, sizeof(buf), 0) == -1)
         if (send(sockfd, header_buf, sizeof(Header), 0) == -1)
         {
             logger(1, LOG_LEVEL, PROCESS_ID, "Could not send new_view to peer\n");
@@ -714,10 +652,9 @@ void send_new_leader_msg()
         close(sockfd);
 
     }
-    // since they've been packed we don't need the structs any more
+
     free(header);
     free(leader);
-    // free(buf);
     free(header_buf);
     free(new_leader_buf);
 
@@ -778,9 +715,6 @@ int main(int argc, char *argv[])
 
     logger(0, LOG_LEVEL, PROCESS_ID, "Command line parsed\n");
 
-    // STORED_OPS = malloc(MAX_OPS * sizeof(StoredOperation *));
-    // memset(STORED_OPS, 0, sizeof(*STORED_OPS));
-    // logger(0, LOG_LEVEL, PROCESS_ID, "Setup stored operations\n");
     STORED_OP = 0;
     logger(0, LOG_LEVEL, PROCESS_ID, "Setup stored operation\n");
 
@@ -881,7 +815,6 @@ int main(int argc, char *argv[])
         // because we all know all of the members at the start
         // this just an int[] that just references hosts array on send
     MEMBERSHIP_LIST = malloc(NUM_HOSTS * sizeof(int));
-    //memset(MEMBERSHIP_LIST, 0, sizeof(*MEMBERSHIP_LIST));
     for (j = 0; j < NUM_HOSTS; j++)
     {
         MEMBERSHIP_LIST[j] = 0;
@@ -889,8 +822,6 @@ int main(int argc, char *argv[])
     if (PROCESS_ID == 1)
     {
         IS_LEADER = True;
-        // MEMBERSHIP_LIST = malloc(NUM_HOSTS * sizeof(int));
-        // memset(MEMBERSHIP_LIST, 0, sizeof(*MEMBERSHIP_LIST));
         edit_membership_list(PROCESS_ID, OpAdd);
     }
     // else   
@@ -942,9 +873,6 @@ int main(int argc, char *argv[])
             // check which process have died
             for (j = 0; j < NUM_HOSTS; j++)
             {
-                //logger(0, LOG_LEVEL, PROCESS_ID, "Verifying for %d\n", j+1);
-                //if (RECEIVED_HEARTBEATS[j]->recvd_time == NULL)
-                //if (MEMBERSHIP_LIST[j] == 0 || (j+1) == PROCESS_ID)
                 if (MEMBERSHIP_LIST[j] == 0 || RECEIVED_HEARTBEATS[j]->recvd_time == NULL)
                 {
                     continue;
@@ -952,9 +880,6 @@ int main(int argc, char *argv[])
 
                 gettimeofday(&cur_time, NULL);
 
-                // XXX if you are the leader and peer not reachable then you need to send
-                // del req
-                // timeout is 2.5 for heart beats so if we've waited more than 2x that
                 if ((cur_time.tv_sec - RECEIVED_HEARTBEATS[j]->recvd_time->tv_sec) >= 4)
                 {
                     printf("Peer %d not reachable\n", j+1);
@@ -966,8 +891,6 @@ int main(int argc, char *argv[])
                     if (TEST3)
                     {
                         if (IS_LEADER)
-                        // TODO you also need to remove that peer from your own membership
-                        // list or else the networking will fail
                         {
                             edit_membership_list(j+1, OpDel);
                             send_req(j+1, OpDel);
@@ -980,6 +903,8 @@ int main(int argc, char *argv[])
                             // go through membership list and leader is now lowest id that is member
                             if (j+1 == LEADER_ID)
                             {
+                                // if the leader crashed you need to remove that from the membership
+                                // and also need to update the membership size
                                 logger(0, LOG_LEVEL, PROCESS_ID, "Detected leader crashed\n");
                                 MEMBERSHIP_LIST[j] = 0;
                                 MEMBERSHIP_SIZE--;
@@ -1122,9 +1047,6 @@ int main(int argc, char *argv[])
                                 free(req);
                                 free(req_buf);
                                 break;
-                            // TODO Oks need to be checked based on request/view id
-                            // different ops need to trigger different sends
-                            // if ok
                             // only the leader should be receiving oks
                             case OkMessageType:
                                 logger(0, LOG_LEVEL, PROCESS_ID, "Received Ok Message\n");
@@ -1137,24 +1059,6 @@ int main(int argc, char *argv[])
                                 }
                                 unpack_ok_message(ok, ok_buf);
                                 logger(0, LOG_LEVEL, PROCESS_ID, "OK unpacked\n");
-                                // update ok list for request id and view
-                                // int j;
-                                // for (j = 0; j < MAX_OPS; j++)
-                                // {
-                                //     if (STORED_OPS[j] == 0)
-                                //     {
-                                //         continue;
-                                //         logger(0, LOG_LEVEL, PROCESS_ID, "Empty stored op\n");
-                                //     }
-                                //     if (STORED_OPS[j]->request_id == ok->request_id && 
-                                //             STORED_OPS[j]->curr_view_id == ok->curr_view_id)
-                                //     {
-                                //         //STORED_OPS[i]->num_oks ++;
-                                //         logger(0, LOG_LEVEL, PROCESS_ID, "Found stored message\n");
-                                //         STORED_OPS[j]->num_oks = STORED_OPS[j]->num_oks + 1;
-                                //         break;
-                                //     }
-                                // }
 
                                 if (STORED_OP->request_id == ok->request_id &&
                                     STORED_OP->curr_view_id == ok->curr_view_id)
@@ -1168,27 +1072,6 @@ int main(int argc, char *argv[])
                                         "Can only handle one pending op at a time\n");
                                     exit(1);
                                 }
-
-                                // FIXME this needs to handle both adding and removing from
-                                // membership list based on the op type
-                                // if received all oks
-                                // if (STORED_OPS[j]->num_oks == MEMBERSHIP_SIZE)
-                                // {
-                                //     if (STORED_OPS[j]->op_type == OpAdd)
-                                //     {
-                                //         // add peer to your membership list
-                                //         edit_membership_list(STORED_OPS[j]->peer_id, OpAdd);
-                                //     }
-                                //     else if (STORED_OPS[j]->op_type == OpDel)
-                                //     {
-                                //         edit_membership_list(STORED_OPS[j]->peer_id, OpDel);
-                                //     }
-
-                                //     //increment view id
-                                //     VIEW_ID++;
-                                //     // send new view
-                                //     send_new_view();
-                                // }
 
                                 logger(0, LOG_LEVEL, PROCESS_ID, "Have %d ok need %d\n", STORED_OP->num_oks, MEMBERSHIP_SIZE);
                                 if (STORED_OP->num_oks == MEMBERSHIP_SIZE)
@@ -1206,10 +1089,6 @@ int main(int argc, char *argv[])
                                     VIEW_ID++;
                                     send_new_view();
                                 }
-                                // else
-                                // {
-                                //     logger(0, LOG_LEVEL, PROCESS_ID, "Have %d oks\n", STORED_OPS[j]->num_oks);
-                                // }
 
                                 free(ok);
                                 free(ok_buf);
@@ -1235,11 +1114,6 @@ int main(int argc, char *argv[])
                                 // update view id
                                 VIEW_ID = view->view_id;
                                 logger(0, LOG_LEVEL, PROCESS_ID, "Updated View id\n");
-                                // update membership list
-                                // FIXME this needs to handle both adding and removing from 
-                                // membership list
-                                // XXX probably easiest just to clear out the membership list
-                                // and then re initialize based on the new view
 
                                 // clear membership list
                                 for (j = 0; j < NUM_HOSTS; j++)
@@ -1250,7 +1124,7 @@ int main(int argc, char *argv[])
                                 // new leader is the lowest id in the membership list
                                 // so if leader crashed and pending op done that new guy knows
                                 LEADER_ID = view->membership_list[0];
-                                // readd everything to membership list  
+                                // re add everything to membership list  
                                 for (j = 0; j < view->membership_size; j++)
                                 {
                                     edit_membership_list(view->membership_list[j], OpAdd);
@@ -1272,12 +1146,9 @@ int main(int argc, char *argv[])
 
                                 // nothing pending anymore
                                 free(STORED_OP);
-                                // STORED_OP = 0;
                                 memset(&STORED_OP, 0, sizeof(STORED_OP));
 
-                                // trigger them to resend heartbeats when someone new joins
-                                // sometimes they still think someone has failed who is still
-                                // alive
+                                // trigger to resend heartbeats when someone new joins
                                 LAST_HEARTBEAT_SENT = 0;
 
                                 fflush(stdout);
@@ -1322,25 +1193,19 @@ int main(int argc, char *argv[])
 
                                 if (pending->op_type == OpNothing)
                                 {
-                                    ;       // do nothing
+                                    ;       // no pending->nothing, membership list already updated
                                 }
                                 else if (pending->op_type == OpAdd)
                                 {
                                     // should just resned the request, restarting the 2pc protocol
-                                    // edit_membership_list(pending->peer_id, OpAdd);
                                     logger(0, LOG_LEVEL, PROCESS_ID, "Sending pending op request\n");
                                     send_req(pending->peer_id, OpAdd);
                                 }
                                 else if (pending->op_type == OpDel)
                                 {
-                                    // edit_membership_list(pending->peer_id, OpDel);
                                     logger(0, LOG_LEVEL, PROCESS_ID, "Sending pending op request\n");
                                     send_req(pending->peer_id, OpDel);
                                 }
-
-                                // STORED_OP = 0;
-                                // VIEW_ID++;
-                                // send_new_view();
 
                                 free(pending);
                                 free(pending_buf);
